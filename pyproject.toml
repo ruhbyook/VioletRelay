@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xmediaplayerx"
+version = "0.4.17"
+description = "A cinematic Windows media player with Apple TV AirPlay casting"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+keywords = ["airplay", "apple-tv", "media-player", "qt", "windows"]
+dependencies = [
+  "platformdirs==4.3.8",
+  "pyatv==0.18.0",
+  "PySide6>=6.9,<6.12",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: Microsoft :: Windows :: Windows 11",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Homepage = "https://github.com/ruhbyook/xMediaPlayerx"
+Documentation = "https://github.com/ruhbyook/xMediaPlayerx#readme"
+Issues = "https://github.com/ruhbyook/xMediaPlayerx/issues"
+Source = "https://github.com/ruhbyook/xMediaPlayerx"
+
+[project.optional-dependencies]
+dev = [
+  "coverage[toml]>=7.8",
+  "Pillow>=11.1,<13",
+  "pyinstaller>=6.14",
+  "pytest>=8.4",
+  "pytest-qt>=4.4",
+]
+
+[project.scripts]
+xmediaplayerx = "xmediaplayerx.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xmediaplayerx"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/xmediaplayerx/qml" = "xmediaplayerx/qml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["xmediaplayerx"]
+omit = ["*/qml/*"]
