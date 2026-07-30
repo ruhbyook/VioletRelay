@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2 - 2026-07-30
+
+- Centered toolbar and transport glyphs against the complete circular button
+  bounds instead of Qt Material's inherited padded content area.
+- Replaced the header's mixed Unicode symbols with consistently sized Segoe
+  Fluent Icons for Up Next, support, and application information.
+- Added a regression check for full-bounds icon-button alignment.
+
 ## 0.5.1 - 2026-07-30
 
 - Rebuilt the ReelFerry **R** as a clean geometric silhouette that remains

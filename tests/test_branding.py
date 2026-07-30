@@ -14,13 +14,13 @@ def test_package_metadata_and_runtime_version_match_reelferry_brand():
         project = tomllib.load(stream)["project"]
 
     assert project["name"] == "reelferry"
-    assert project["version"] == __version__ == "0.5.1"
+    assert project["version"] == __version__ == "0.5.2"
     assert project["scripts"] == {"reelferry": "reelferry.app:main"}
     version_info = (
         ROOT / "assets" / "reelferry-version-info.txt"
     ).read_text(encoding="utf-8")
     assert "StringStruct('ProductName', 'ReelFerry')" in version_info
-    assert "StringStruct('ProductVersion', '0.5.1.0')" in version_info
+    assert "StringStruct('ProductVersion', '0.5.2.0')" in version_info
 
 
 def test_runtime_qml_uses_only_the_current_visible_brand():
