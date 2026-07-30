@@ -5,9 +5,11 @@ import os
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtGui import QGuiApplication
 
 from xmediaplayerx.services.cache import CastCache
 from xmediaplayerx.settings import SettingsStore
+from xmediaplayerx.support import BITCOIN_ADDRESS, ETHEREUM_ADDRESS
 
 
 class AppSettingsController(QObject):
@@ -27,6 +29,7 @@ class AppSettingsController(QObject):
         self.cache = cache
         self.diagnostics_directory = diagnostics_directory
         self._status = ""
+        self._support_status = ""
         self.log = logging.getLogger("xmediaplayerx.controller.settings")
 
     @Property(int, notify=changed)
@@ -40,6 +43,18 @@ class AppSettingsController(QObject):
     @Property(str, notify=changed)
     def cacheStatus(self) -> str:
         return self._status
+
+    @Property(str, constant=True)
+    def bitcoinAddress(self) -> str:
+        return BITCOIN_ADDRESS
+
+    @Property(str, constant=True)
+    def ethereumAddress(self) -> str:
+        return ETHEREUM_ADDRESS
+
+    @Property(str, notify=changed)
+    def supportStatus(self) -> str:
+        return self._support_status
 
     @staticmethod
     def _format_bytes(value: int) -> str:
@@ -87,6 +102,32 @@ class AppSettingsController(QObject):
     @Slot()
     def refresh(self) -> None:
         self.changed.emit()
+
+    def _copy_support_address(self, address: str, label: str) -> None:
+        try:
+            clipboard = QGuiApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("the Windows clipboard is unavailable")
+            clipboard.setText(address)
+            self._support_status = f"{label} address copied"
+            self.changed.emit()
+        except Exception as error:
+            self.log.warning("Support address could not be copied", exc_info=True)
+            self.errorOccurred.emit(f"The support address could not be copied: {error}")
+
+    @Slot()
+    def copyBitcoinAddress(self) -> None:
+        self._copy_support_address(BITCOIN_ADDRESS, "Bitcoin")
+
+    @Slot()
+    def copyEthereumAddress(self) -> None:
+        self._copy_support_address(ETHEREUM_ADDRESS, "Ethereum / USDC")
+
+    @Slot()
+    def clearSupportStatus(self) -> None:
+        if self._support_status:
+            self._support_status = ""
+            self.changed.emit()
 
     @Slot()
     def openDiagnosticsFolder(self) -> None:

@@ -21,6 +21,11 @@ build provider's GitHub release. GitHub and the provider receive normal network
 request information such as the user's IP address. Their privacy policies apply
 to that request.
 
+The optional support dialog is entirely static and offline. It displays public
+receiving addresses and locally bundled QR images; xMediaPlayerx does not connect
+to a wallet, exchange, blockchain service, or project-operated payment service.
+Copying an address uses only the local Windows clipboard.
+
 Local media is served from a random, unguessable URL on an ephemeral port and
 only while a cast session needs it. xMediaPlayerx does not upload local media to
 the project maintainer.

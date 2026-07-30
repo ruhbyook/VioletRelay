@@ -206,11 +206,27 @@ on a physical Apple TV 4K running tvOS 26.5 with direct URLs and PC-hosted local
 files. VLC for Apple TV remains an automatic emergency fallback if modern session
 setup fails. Earlier tvOS releases continue to use `pyatv`'s direct AirPlay path.
 
-## License and donations
+## Support development
+
+Every feature is free and remains available without payment. If xMediaPlayerx
+is useful to you, optional crypto tips can support hardware testing and future
+development:
+
+| Asset | Network | Public receiving address |
+| --- | --- | --- |
+| BTC | Bitcoin | `bc1q4udt9zp44v23c3geph6tq5h5a659xa0qqph2es` |
+| ETH or USDC | Ethereum Mainnet only; USDC must be ERC-20 | `0xAd53452fB8ae492a96154D12aa671D3331AA6680` |
+
+The in-app heart button displays offline QR codes and copies these exact public
+addresses. It never connects a wallet or requests a seed phrase, private key,
+account, or personal information. Check the asset and network before sending:
+crypto transfers are irreversible. Tips are optional, do not unlock features,
+and are not represented as tax-deductible charitable donations.
+
+## License
 
 xMediaPlayerx is free software licensed under GPL-3.0-or-later. All functionality
-is available without payment. A future donation link may support development, but
-donations will not unlock features or change the license.
+is available without payment. Tips do not change the license.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [FFMPEG_SOURCE.md](FFMPEG_SOURCE.md) before redistributing a build. Public

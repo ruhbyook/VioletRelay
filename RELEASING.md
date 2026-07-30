@@ -32,8 +32,9 @@ Before publishing:
    is offered. This project does not provide legal advice.
 5. Code-signing is strongly recommended before inviting nontechnical users.
 6. Test on a clean Windows 11 user account and with a new Apple TV pairing.
-7. Keep donations optional, outside the playback flow, and never imply Apple
-   certification or endorsement.
+7. Confirm the in-app and README support addresses match
+   `src/xmediaplayerx/support.py`. Keep tips optional and outside the playback
+   flow, and never imply tax deductibility, Apple certification, or endorsement.
 8. Create an annotated `v<version>` tag from the exact clean revision and
    publish release notes that state whether the artifact is signed.
 

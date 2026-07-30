@@ -219,6 +219,7 @@ ApplicationWindow {
                 onClicked: castPanel.open()
             }
             RoundButtonX { text: "☷"; ToolTip.text: "Toggle Up Next"; onClicked: root.queueVisible = !root.queueVisible }
+            RoundButtonX { text: "\u2665"; ToolTip.text: "Support development"; onClicked: supportDialog.open() }
             RoundButtonX { text: "i"; ToolTip.text: "Settings and about"; onClicked: aboutDialog.open() }
         }
 
@@ -988,6 +989,11 @@ ApplicationWindow {
             }
             GlowButton {
                 Layout.fillWidth: true
+                text: "\u2665  Support development"
+                onClicked: supportDialog.open()
+            }
+            GlowButton {
+                Layout.fillWidth: true
                 text: "Open diagnostic log folder"
                 onClicked: {
                     if (appSettings)
@@ -1007,6 +1013,175 @@ ApplicationWindow {
                 text: "The portable folder includes LICENSE, THIRD_PARTY_NOTICES.md, FFMPEG_SOURCE.md, and dependency license texts."
                 color: root.textSecondary
                 wrapMode: Text.Wrap
+                font.pixelSize: 12
+            }
+        }
+    }
+
+    Dialog {
+        id: supportDialog
+        anchors.centerIn: parent
+        width: Math.min(700, root.width - 36)
+        height: Math.min(680, root.height - 36)
+        modal: true
+        title: "Support xMediaPlayerx"
+        standardButtons: Dialog.Close
+        onOpened: {
+            if (appSettings)
+                appSettings.clearSupportStatus()
+        }
+        background: Rectangle {
+            radius: 18
+            color: "#FA181D2B"
+            border.color: root.accent
+            border.width: 1
+        }
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            Text {
+                Layout.fillWidth: true
+                text: "xMediaPlayerx is free software. Optional tips help support testing and development; they never unlock features."
+                color: root.textSecondary
+                wrapMode: Text.Wrap
+                font.pixelSize: 13
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 14
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 350
+                    radius: 16
+                    color: "#101621"
+                    border.color: "#303A50"
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 7
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Bitcoin"
+                            color: root.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "BTC \u00B7 Bitcoin network"
+                            color: "#F2A900"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                        }
+                        Image {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 180
+                            Layout.preferredHeight: 180
+                            source: "assets/support-bitcoin.png"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: false
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: appSettings ? appSettings.bitcoinAddress : ""
+                            color: root.textSecondary
+                            font.family: "Consolas"
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WrapAnywhere
+                        }
+                        Item { Layout.fillHeight: true }
+                        GlowButton {
+                            Layout.fillWidth: true
+                            text: "Copy Bitcoin address"
+                            onClicked: {
+                                if (appSettings)
+                                    appSettings.copyBitcoinAddress()
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 350
+                    radius: 16
+                    color: "#101621"
+                    border.color: "#303A50"
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 7
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Ethereum / USDC"
+                            color: root.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "ETH or USDC \u00B7 Ethereum Mainnet only"
+                            color: "#8C8CFF"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                        }
+                        Image {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 180
+                            Layout.preferredHeight: 180
+                            source: "assets/support-ethereum.png"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: false
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: appSettings ? appSettings.ethereumAddress : ""
+                            color: root.textSecondary
+                            font.family: "Consolas"
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WrapAnywhere
+                        }
+                        Item { Layout.fillHeight: true }
+                        GlowButton {
+                            Layout.fillWidth: true
+                            text: "Copy Ethereum address"
+                            onClicked: {
+                                if (appSettings)
+                                    appSettings.copyEthereumAddress()
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: appSettings && appSettings.supportStatus.length > 0
+                text: appSettings ? appSettings.supportStatus : ""
+                color: root.cyan
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Check the asset and network before sending. Crypto transfers are irreversible. This screen never asks for or accepts a seed phrase, private key, or wallet connection."
+                color: "#E7B86A"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
                 font.pixelSize: 12
             }
         }

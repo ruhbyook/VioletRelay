@@ -20,6 +20,8 @@ $Required = @(
     $Executable,
     (Join-Path $Package "_internal\qml\Main.qml"),
     (Join-Path $Package "_internal\qml\assets\xmediaplayerx-icon.png"),
+    (Join-Path $Package "_internal\qml\assets\support-bitcoin.png"),
+    (Join-Path $Package "_internal\qml\assets\support-ethereum.png"),
     (Join-Path $Package "LICENSE"),
     (Join-Path $Package "THIRD_PARTY_NOTICES.md"),
     (Join-Path $Package "FFMPEG_SOURCE.md"),

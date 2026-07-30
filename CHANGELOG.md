@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.18 - 2026-07-30
+
+- Added an optional, offline Support development dialog with explicit Bitcoin
+  and Ethereum-mainnet network labels.
+- Added bundled QR images and guarded clipboard actions for the canonical BTC
+  and Ethereum/USDC public receiving addresses.
+- Added GitHub funding metadata plus donation-address integrity, privacy, and
+  release guidance. Tips remain optional and never unlock functionality.
+
 ## 0.4.17 - 2026-07-29
 
 First public beta.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xmediaplayerx"
-version = "0.4.17"
+version = "0.4.18"
 description = "A cinematic Windows media player with Apple TV AirPlay casting"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -37,6 +37,7 @@ dev = [
   "pyinstaller>=6.14",
   "pytest>=8.4",
   "pytest-qt>=4.4",
+  "qrcode>=8.2,<9",
 ]
 
 [project.scripts]

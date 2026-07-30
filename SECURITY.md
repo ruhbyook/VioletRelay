@@ -25,3 +25,8 @@ Every release publishes SHA-256 checksums. Public binaries are built from a
 tagged revision. Until trusted code signing is available, releases are clearly
 identified as unsigned. The optional FFmpeg download is accepted only when the
 archive and extracted executable hashes match pinned values.
+
+The canonical optional-support addresses are committed in
+`src/xmediaplayerx/support.py` and repeated in the tagged README. Treat an
+unexpected donation-address change as a security-sensitive supply-chain event
+and report it privately.

@@ -1,6 +1,9 @@
+from PySide6.QtGui import QGuiApplication
+
 from xmediaplayerx.controllers.settings import AppSettingsController
 from xmediaplayerx.services.cache import CastCache
 from xmediaplayerx.settings import SettingsStore
+from xmediaplayerx.support import BITCOIN_ADDRESS, ETHEREUM_ADDRESS
 
 
 def test_cache_limit_is_persisted_and_enforced(qtbot, tmp_path):
@@ -30,3 +33,26 @@ def test_clear_cast_cache_reports_result(qtbot, tmp_path):
 
     assert controller.cacheUsageText == "0 bytes"
     assert "2 prepared cast copies" in controller.cacheStatus
+
+
+def test_support_addresses_are_exposed_and_copied(qtbot, tmp_path):
+    settings = SettingsStore(tmp_path / "settings.json")
+    cache = CastCache(tmp_path / "cache", 20 * 1024**3)
+    controller = AppSettingsController(settings, cache)
+
+    assert controller.bitcoinAddress == BITCOIN_ADDRESS
+    assert controller.ethereumAddress == ETHEREUM_ADDRESS
+
+    with qtbot.waitSignal(controller.changed):
+        controller.copyBitcoinAddress()
+    assert QGuiApplication.clipboard().text() == BITCOIN_ADDRESS
+    assert controller.supportStatus == "Bitcoin address copied"
+
+    with qtbot.waitSignal(controller.changed):
+        controller.copyEthereumAddress()
+    assert QGuiApplication.clipboard().text() == ETHEREUM_ADDRESS
+    assert controller.supportStatus == "Ethereum / USDC address copied"
+
+    with qtbot.waitSignal(controller.changed):
+        controller.clearSupportStatus()
+    assert controller.supportStatus == ""

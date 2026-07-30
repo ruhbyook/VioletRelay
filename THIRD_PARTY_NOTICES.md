@@ -19,6 +19,8 @@ components are particularly important:
 - **python-zeroconf** — LGPL-2.1-or-later.
 - **aiohttp** — Apache-2.0 AND MIT.
 - **cryptography** — Apache-2.0 OR BSD-3-Clause.
+- **qrcode** — BSD-3-Clause. It is a development-only generator for the
+  committed offline support QR images and is not imported by the application.
 - **Python** — Python Software Foundation License.
 
 The dependency report generated for each release is informational; the license
