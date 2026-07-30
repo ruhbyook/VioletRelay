@@ -66,7 +66,7 @@ jobs:
       - name: Smoke test packaged application
         shell: pwsh
         run: .\scripts\verify_package.ps1 -DistRoot dist-ci -Smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: VioletRelay-windows-x64-unsigned
           path: dist-ci/VioletRelay
