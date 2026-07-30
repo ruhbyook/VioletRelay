@@ -106,15 +106,17 @@ ApplicationWindow {
         id: round
         implicitWidth: 40
         implicitHeight: 40
+        padding: 0
         font.family: "Segoe UI Variable"
         font.pixelSize: 14
         font.weight: Font.DemiBold
-        contentItem: Text {
-            text: round.text
-            font: round.font
-            color: round.enabled ? root.textPrimary : "#566071"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+        contentItem: Item {
+            Text {
+                anchors.centerIn: parent
+                text: round.text
+                font: round.font
+                color: round.enabled ? root.textPrimary : "#566071"
+            }
         }
         background: Rectangle {
             radius: width / 2
@@ -135,16 +137,18 @@ ApplicationWindow {
         property bool primary: false
         implicitWidth: primary ? 48 : 40
         implicitHeight: primary ? 48 : 40
+        padding: 0
         font.family: "Segoe Fluent Icons"
         font.pixelSize: primary ? 20 : 16
-        contentItem: Text {
-            text: transport.glyph
-            font: transport.font
-            color: transport.enabled
-                   ? (transport.primary ? "white" : root.textPrimary)
-                   : "#566071"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+        contentItem: Item {
+            Text {
+                anchors.centerIn: parent
+                text: transport.glyph
+                font: transport.font
+                color: transport.enabled
+                       ? (transport.primary ? "white" : root.textPrimary)
+                       : "#566071"
+            }
         }
         background: Rectangle {
             radius: width / 2
@@ -218,9 +222,27 @@ ApplicationWindow {
                 enabled: !playback.fallbackPreparing
                 onClicked: castPanel.open()
             }
-            RoundButtonX { text: "☷"; ToolTip.text: "Toggle Up Next"; onClicked: root.queueVisible = !root.queueVisible }
-            RoundButtonX { text: "\u2665"; ToolTip.text: "Support development"; onClicked: supportDialog.open() }
-            RoundButtonX { text: "i"; ToolTip.text: "Settings and about"; onClicked: aboutDialog.open() }
+            RoundButtonX {
+                text: "\uE8A9"
+                font.family: "Segoe Fluent Icons"
+                font.pixelSize: 16
+                ToolTip.text: "Toggle Up Next"
+                onClicked: root.queueVisible = !root.queueVisible
+            }
+            RoundButtonX {
+                text: "\uEB51"
+                font.family: "Segoe Fluent Icons"
+                font.pixelSize: 16
+                ToolTip.text: "Support development"
+                onClicked: supportDialog.open()
+            }
+            RoundButtonX {
+                text: "\uE946"
+                font.family: "Segoe Fluent Icons"
+                font.pixelSize: 16
+                ToolTip.text: "Settings and about"
+                onClicked: aboutDialog.open()
+            }
         }
 
         RowLayout {

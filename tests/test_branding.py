@@ -35,6 +35,17 @@ def test_runtime_qml_uses_only_the_current_visible_brand():
     assert "reelferry-icon.png" in qml
 
 
+def test_icon_buttons_center_glyphs_in_the_full_control_bounds():
+    qml = (ROOT / "src" / "reelferry" / "qml" / "Main.qml").read_text(
+        encoding="utf-8"
+    )
+
+    assert qml.count("padding: 0") >= 2
+    assert 'text: "\\uE8A9"' in qml
+    assert 'text: "\\uEB51"' in qml
+    assert 'text: "\\uE946"' in qml
+
+
 def test_reelferry_icon_assets_are_valid_and_multiresolution():
     with Image.open(
         ROOT / "assets" / "branding" / "reelferry-icon-master.png"
