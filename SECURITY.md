@@ -8,7 +8,7 @@ builds should be replaced rather than retained.
 ## Reporting a vulnerability
 
 Use
-[GitHub private vulnerability reporting](https://github.com/ruhbyook/xMediaPlayerx/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/ruhbyook/ReelFerry/security/advisories/new).
 Do not open a public issue for credential exposure, arbitrary file access,
 command execution, unsafe update/download behavior, or network-service flaws.
 
@@ -27,6 +27,6 @@ identified as unsigned. The optional FFmpeg download is accepted only when the
 archive and extracted executable hashes match pinned values.
 
 The canonical optional-support addresses are committed in
-`src/xmediaplayerx/support.py` and repeated in the tagged README. Treat an
+`src/reelferry/support.py` and repeated in the tagged README. Treat an
 unexpected donation-address change as a security-sensitive supply-chain event
 and report it privately.

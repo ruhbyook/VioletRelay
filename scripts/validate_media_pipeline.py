@@ -6,9 +6,9 @@ import threading
 import time
 from pathlib import Path
 
-from xmediaplayerx.services.cache import CastCache
-from xmediaplayerx.services.converter import MediaPreparer
-from xmediaplayerx.services.media import (
+from reelferry.services.cache import CastCache
+from reelferry.services.converter import MediaPreparer
+from reelferry.services.media import (
     FFmpegLocator,
     MediaProbe,
     PreparationKind,
@@ -80,7 +80,7 @@ def main() -> int:
     locator = FFmpegLocator()
     locator.require()
     probe = MediaProbe(locator)
-    with tempfile.TemporaryDirectory(prefix="xmediaplayerx-integration-") as root:
+    with tempfile.TemporaryDirectory(prefix="reelferry-integration-") as root:
         cache = CastCache(Path(root), 2 * 1024**3)
         preparer = MediaPreparer(locator, probe, cache)
         validate_case(

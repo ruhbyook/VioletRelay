@@ -1,5 +1,5 @@
-from xmediaplayerx.errors import error_message
-from xmediaplayerx.logging_utils import redact_text
+from reelferry.errors import error_message
+from reelferry.logging_utils import redact_text
 
 
 def test_redacts_credentials_and_url_query():

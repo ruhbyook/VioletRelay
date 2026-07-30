@@ -1,9 +1,9 @@
 import concurrent.futures
 
-from xmediaplayerx.controllers.airplay import AirPlayController
-from xmediaplayerx.models import QueueModel
-from xmediaplayerx.services.airplay import AirPlayDevice, CastStatus
-from xmediaplayerx.settings import SettingsStore
+from reelferry.controllers.airplay import AirPlayController
+from reelferry.models import QueueModel
+from reelferry.services.airplay import AirPlayDevice, CastStatus
+from reelferry.settings import SettingsStore
 
 
 class Player:

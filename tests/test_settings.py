@@ -1,4 +1,4 @@
-from xmediaplayerx.settings import SettingsStore
+from reelferry.settings import SettingsStore
 
 
 def test_settings_merge_defaults_and_persist(tmp_path):

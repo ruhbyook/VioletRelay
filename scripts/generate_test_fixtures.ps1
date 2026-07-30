@@ -62,7 +62,7 @@ $UnicodeCaption = "Unicode path check: caf$([char]0x00E9) " +
 Set-Content -LiteralPath $ExternalSubtitle -Encoding utf8 -Value @(
     "1",
     "00:00:00,300 --> 00:00:01,500",
-    "xMediaPlayerx external subtitle",
+    "ReelFerry external subtitle",
     "",
     "2",
     "00:00:01,700 --> 00:00:02,800",

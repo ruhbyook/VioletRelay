@@ -3,10 +3,10 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-import xmediaplayerx.services.converter as converter_module
-from xmediaplayerx.services.cache import CastCache
-from xmediaplayerx.services.converter import EncoderBackend, MediaPreparer
-from xmediaplayerx.services.media import (
+import reelferry.services.converter as converter_module
+from reelferry.services.cache import CastCache
+from reelferry.services.converter import EncoderBackend, MediaPreparer
+from reelferry.services.media import (
     MediaInfo,
     MediaStream,
     PreparationKind,

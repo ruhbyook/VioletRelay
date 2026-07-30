@@ -1,4 +1,4 @@
-from xmediaplayerx.models import QueueModel
+from reelferry.models import QueueModel
 from PySide6.QtCore import QUrl
 
 

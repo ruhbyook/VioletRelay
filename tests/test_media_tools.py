@@ -7,7 +7,7 @@ import zipfile
 
 import pytest
 
-from xmediaplayerx.services.media_tools import MediaToolsInstaller
+from reelferry.services.media_tools import MediaToolsInstaller
 
 
 class Response(BytesIO):

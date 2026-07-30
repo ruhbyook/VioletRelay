@@ -1,6 +1,6 @@
 from PySide6.QtCore import QUrl
 
-from xmediaplayerx.app import open_startup_media, startup_media
+from reelferry.app import open_startup_media, startup_media
 
 
 class FakeQueue:

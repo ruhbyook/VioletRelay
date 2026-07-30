@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from xmediaplayerx.support import (
+from reelferry.support import (
     BITCOIN_ADDRESS,
     BITCOIN_URI,
     ETHEREUM_ADDRESS,
@@ -12,7 +12,7 @@ from xmediaplayerx.support import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ROOT / "src" / "xmediaplayerx" / "qml" / "assets"
+ASSETS = ROOT / "src" / "reelferry" / "qml" / "assets"
 
 
 def test_public_support_addresses_and_networks_are_unambiguous():

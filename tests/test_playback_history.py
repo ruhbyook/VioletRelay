@@ -1,16 +1,16 @@
 import json
 from pathlib import Path
 
-from xmediaplayerx.controllers.playback import PlaybackController
-from xmediaplayerx.models import QueueModel
-from xmediaplayerx.services.playback_history import (
+from reelferry.controllers.playback import PlaybackController
+from reelferry.models import QueueModel
+from reelferry.services.playback_history import (
     MIN_RESUME_MS,
     MediaIdentity,
     PlaybackHistory,
     finish_window_ms,
     is_effectively_complete,
 )
-from xmediaplayerx.settings import SettingsStore
+from reelferry.settings import SettingsStore
 
 
 def media_file(path: Path, marker: bytes = b"a") -> Path:

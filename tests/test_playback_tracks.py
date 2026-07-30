@@ -2,17 +2,17 @@ import threading
 
 import pytest
 
-import xmediaplayerx.controllers.playback as playback_module
-from xmediaplayerx.controllers.playback import PlaybackController
-from xmediaplayerx.models import QueueModel
-from xmediaplayerx.services.converter import PreparedMedia
-from xmediaplayerx.services.media import (
+import reelferry.controllers.playback as playback_module
+from reelferry.controllers.playback import PlaybackController
+from reelferry.models import QueueModel
+from reelferry.services.converter import PreparedMedia
+from reelferry.services.media import (
     MediaInfo,
     MediaStream,
     RemoteMediaIdentity,
 )
-from xmediaplayerx.services.media import PreparationKind
-from xmediaplayerx.settings import SettingsStore
+from reelferry.services.media import PreparationKind
+from reelferry.settings import SettingsStore
 
 
 class FakePreparer:

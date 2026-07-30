@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve xMediaPlayerx. Do not attach copyrighted media, pairing files, raw network captures, or unreviewed diagnostic logs.
+        Thanks for helping improve ReelFerry. Do not attach copyrighted media, pairing files, raw network captures, or unreviewed diagnostic logs.
   - type: input
     id: version
     attributes:
-      label: xMediaPlayerx version
-      placeholder: "0.4.17"
+      label: ReelFerry version
+      placeholder: "0.5.0"
     validations:
       required: true
   - type: input

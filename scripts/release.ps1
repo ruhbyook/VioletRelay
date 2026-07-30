@@ -33,7 +33,7 @@ if (-not $SkipBuild) {
         -WithoutBundledFFmpeg:$Public
     if ($LASTEXITCODE -ne 0) { throw "Build failed." }
 }
-if (-not (Test-Path (Join-Path $DistRoot "xMediaPlayerx\xMediaPlayerx.exe"))) {
+if (-not (Test-Path (Join-Path $DistRoot "ReelFerry\ReelFerry.exe"))) {
     throw "Portable build is missing. Run scripts\build.ps1."
 }
 
@@ -41,14 +41,14 @@ $Version = & $Python -c "import tomllib; print(tomllib.load(open('pyproject.toml
 $ReleaseDir = Join-Path $Root "release"
 New-Item -ItemType Directory -Force $ReleaseDir | Out-Null
 $Suffix = if ($Public) { "" } else { "-local-beta" }
-$ZipName = "xMediaPlayerx-$Version-windows-x64$Suffix.zip"
+$ZipName = "ReelFerry-$Version-windows-x64$Suffix.zip"
 $ZipPath = Join-Path $ReleaseDir $ZipName
 Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
 $ZipCreated = $false
 for ($Attempt = 1; $Attempt -le 5; $Attempt++) {
     try {
         Compress-Archive `
-            -Path (Join-Path $DistRoot "xMediaPlayerx") `
+            -Path (Join-Path $DistRoot "ReelFerry") `
             -DestinationPath $ZipPath `
             -CompressionLevel Optimal `
             -Force `
@@ -70,15 +70,15 @@ $Archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
 try {
     $Entries = @($Archive.Entries)
     $RequiredArchiveEntries = @(
-        "xMediaPlayerx\xMediaPlayerx.exe",
-        "xMediaPlayerx\LICENSE",
-        "xMediaPlayerx\THIRD_PARTY_NOTICES.md",
-        "xMediaPlayerx\FFMPEG_SOURCE.md"
+        "ReelFerry\ReelFerry.exe",
+        "ReelFerry\LICENSE",
+        "ReelFerry\THIRD_PARTY_NOTICES.md",
+        "ReelFerry\FFMPEG_SOURCE.md"
     )
     if (-not $Public) {
         $RequiredArchiveEntries += @(
-            "xMediaPlayerx\_internal\vendor\ffmpeg\bin\ffmpeg.exe",
-            "xMediaPlayerx\_internal\vendor\ffmpeg\bin\ffprobe.exe"
+            "ReelFerry\_internal\vendor\ffmpeg\bin\ffmpeg.exe",
+            "ReelFerry\_internal\vendor\ffmpeg\bin\ffprobe.exe"
         )
     }
     $Names = @($Entries | ForEach-Object { $_.FullName })
@@ -99,7 +99,7 @@ try {
     }
 
     $ExecutableEntry = $Entries | Where-Object {
-        $_.FullName -eq "xMediaPlayerx\xMediaPlayerx.exe"
+        $_.FullName -eq "ReelFerry\ReelFerry.exe"
     } | Select-Object -First 1
     $Hasher = [Security.Cryptography.SHA256]::Create()
     $Stream = $ExecutableEntry.Open()
@@ -114,7 +114,7 @@ try {
     }
     $BuiltExecutableHash = (
         Get-FileHash -Algorithm SHA256 -LiteralPath (
-            Join-Path $DistRoot "xMediaPlayerx\xMediaPlayerx.exe"
+            Join-Path $DistRoot "ReelFerry\ReelFerry.exe"
         )
     ).Hash
     if ($ArchiveExecutableHash -ne $BuiltExecutableHash) {
@@ -127,7 +127,7 @@ finally {
 
 $Artifacts = @($ZipPath)
 if ($Public) {
-    $SourceZip = Join-Path $ReleaseDir "xMediaPlayerx-$Version-source.zip"
+    $SourceZip = Join-Path $ReleaseDir "ReelFerry-$Version-source.zip"
     Remove-Item -LiteralPath $SourceZip -Force -ErrorAction SilentlyContinue
     & git archive --format=zip --output=$SourceZip HEAD
     if ($LASTEXITCODE -ne 0) { throw "Application source archive creation failed." }

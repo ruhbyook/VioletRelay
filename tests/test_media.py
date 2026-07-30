@@ -3,11 +3,11 @@ import threading
 
 import pytest
 
-from xmediaplayerx.services.converter import (
+from reelferry.services.converter import (
     conversion_progress,
     streaming_buffer_progress,
 )
-from xmediaplayerx.services.media import (
+from reelferry.services.media import (
     MediaInfo,
     MediaStream,
     PreparationKind,

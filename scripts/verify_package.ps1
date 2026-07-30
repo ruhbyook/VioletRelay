@@ -12,14 +12,14 @@ $ResolvedDistRoot = if ([IO.Path]::IsPathRooted($DistRoot)) {
 else {
     [IO.Path]::GetFullPath((Join-Path $Root $DistRoot))
 }
-$Package = Join-Path $ResolvedDistRoot "xMediaPlayerx"
-$Executable = Join-Path $Package "xMediaPlayerx.exe"
+$Package = Join-Path $ResolvedDistRoot "ReelFerry"
+$Executable = Join-Path $Package "ReelFerry.exe"
 $Ffmpeg = Join-Path $Package "_internal\vendor\ffmpeg\bin\ffmpeg.exe"
 $Ffprobe = Join-Path $Package "_internal\vendor\ffmpeg\bin\ffprobe.exe"
 $Required = @(
     $Executable,
     (Join-Path $Package "_internal\qml\Main.qml"),
-    (Join-Path $Package "_internal\qml\assets\xmediaplayerx-icon.png"),
+    (Join-Path $Package "_internal\qml\assets\reelferry-icon.png"),
     (Join-Path $Package "_internal\qml\assets\support-bitcoin.png"),
     (Join-Path $Package "_internal\qml\assets\support-ethereum.png"),
     (Join-Path $Package "LICENSE"),
@@ -41,6 +41,20 @@ if ($Missing.Count -gt 0) {
     throw "Portable package is incomplete. Missing: $($Missing -join ', ')"
 }
 
+$VersionInfo = (Get-Item -LiteralPath $Executable).VersionInfo
+$VersionMatch = Select-String `
+    -LiteralPath (Join-Path $Root "pyproject.toml") `
+    -Pattern '^version = "([^"]+)"$'
+if (-not $VersionMatch) {
+    throw "Project version could not be read from pyproject.toml."
+}
+$ExpectedProductVersion = $VersionMatch.Matches[0].Groups[1].Value + ".0"
+if ($VersionInfo.ProductName -ne "ReelFerry" -or
+    $VersionInfo.OriginalFilename -ne "ReelFerry.exe" -or
+    $VersionInfo.ProductVersion -ne $ExpectedProductVersion) {
+    throw "Portable executable has incorrect ReelFerry version metadata."
+}
+
 if ($BundledFFmpeg) {
     $ExpectedFfmpeg = "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"
     $ExpectedFfprobe = "b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"
@@ -59,10 +73,17 @@ elseif ((Test-Path -LiteralPath $Ffmpeg) -or (Test-Path -LiteralPath $Ffprobe)) 
 
 if ($Smoke) {
     $PreviousPlatform = $env:QT_QPA_PLATFORM
-    $PreviousSmoke = $env:XMEDIAPLAYERX_SMOKE_TEST
+    $PreviousSmoke = $env:REELFERRY_SMOKE_TEST
+    $PreviousDataDirectory = $env:REELFERRY_DATA_DIR
+    $PreviousWindowsIntegration = $env:REELFERRY_DISABLE_WINDOWS_INTEGRATION
+    $SmokeDataDirectory = Join-Path (
+        [IO.Path]::GetFullPath($env:TEMP)
+    ) "ReelFerry-package-smoke-$PID"
     try {
         $env:QT_QPA_PLATFORM = "offscreen"
-        $env:XMEDIAPLAYERX_SMOKE_TEST = "1"
+        $env:REELFERRY_SMOKE_TEST = "1"
+        $env:REELFERRY_DATA_DIR = $SmokeDataDirectory
+        $env:REELFERRY_DISABLE_WINDOWS_INTEGRATION = "1"
         $Process = Start-Process -FilePath $Executable -PassThru -Wait
         if ($Process.ExitCode -ne 0) {
             throw "Packaged application exited with code $($Process.ExitCode)."
@@ -70,7 +91,17 @@ if ($Smoke) {
     }
     finally {
         $env:QT_QPA_PLATFORM = $PreviousPlatform
-        $env:XMEDIAPLAYERX_SMOKE_TEST = $PreviousSmoke
+        $env:REELFERRY_SMOKE_TEST = $PreviousSmoke
+        $env:REELFERRY_DATA_DIR = $PreviousDataDirectory
+        $env:REELFERRY_DISABLE_WINDOWS_INTEGRATION = $PreviousWindowsIntegration
+        $ResolvedSmokeData = [IO.Path]::GetFullPath($SmokeDataDirectory)
+        $ResolvedTemp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
+        if ($ResolvedSmokeData.StartsWith(
+            $ResolvedTemp,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -and (Test-Path -LiteralPath $ResolvedSmokeData)) {
+            Remove-Item -LiteralPath $ResolvedSmokeData -Recurse -Force
+        }
     }
 }
 

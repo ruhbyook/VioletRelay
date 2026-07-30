@@ -1,4 +1,4 @@
-from xmediaplayerx.services.subtitles import SubtitleTrack
+from reelferry.services.subtitles import SubtitleTrack
 
 
 def test_srt_parser_and_lookup(tmp_path):

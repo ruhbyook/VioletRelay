@@ -1,9 +1,9 @@
 from PySide6.QtGui import QGuiApplication
 
-from xmediaplayerx.controllers.settings import AppSettingsController
-from xmediaplayerx.services.cache import CastCache
-from xmediaplayerx.settings import SettingsStore
-from xmediaplayerx.support import BITCOIN_ADDRESS, ETHEREUM_ADDRESS
+from reelferry.controllers.settings import AppSettingsController
+from reelferry.services.cache import CastCache
+from reelferry.settings import SettingsStore
+from reelferry.support import BITCOIN_ADDRESS, ETHEREUM_ADDRESS
 
 
 def test_cache_limit_is_persisted_and_enforced(qtbot, tmp_path):

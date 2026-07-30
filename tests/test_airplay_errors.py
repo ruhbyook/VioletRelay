@@ -6,7 +6,7 @@ import pyatv
 import pytest
 from pyatv.const import DeviceState, FeatureName, FeatureState, Protocol
 
-from xmediaplayerx.services.airplay import (
+from reelferry.services.airplay import (
     AirPlayService,
     AsyncRuntime,
     UnavailableAsyncRuntime,

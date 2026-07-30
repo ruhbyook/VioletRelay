@@ -1,6 +1,6 @@
 import os
 
-from xmediaplayerx.services.cache import CastCache
+from reelferry.services.cache import CastCache
 
 
 def test_cache_key_changes_with_source_and_subtitle_mtime(tmp_path):
@@ -77,7 +77,7 @@ def test_inaccessible_cache_entry_is_treated_as_a_miss(tmp_path, monkeypatch):
     path.write_bytes(b"video")
 
     monkeypatch.setattr(
-        "xmediaplayerx.services.cache.os.utime",
+        "reelferry.services.cache.os.utime",
         lambda *_args: (_ for _ in ()).throw(PermissionError("locked")),
     )
     assert cache.get("entry") is None

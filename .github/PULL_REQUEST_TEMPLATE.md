@@ -1,6 +1,6 @@
 ## Summary
 
-Describe the user-visible change and why it belongs in xMediaPlayerx.
+Describe the user-visible change and why it belongs in ReelFerry.
 
 ## Verification
 

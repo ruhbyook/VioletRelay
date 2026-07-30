@@ -71,5 +71,5 @@ if (-not $SkipFFmpeg) {
     }
 }
 
-Write-Host "xMediaPlayerx development environment is ready." -ForegroundColor Green
-Write-Host "Run: .venv\Scripts\python.exe -m xmediaplayerx"
+Write-Host "ReelFerry development environment is ready." -ForegroundColor Green
+Write-Host "Run: .venv\Scripts\python.exe -m reelferry"

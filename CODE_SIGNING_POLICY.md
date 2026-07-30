@@ -2,7 +2,7 @@
 
 ## Current status
 
-xMediaPlayerx public betas are currently unsigned. Release notes state this
+ReelFerry public betas are currently unsigned. Release notes state this
 clearly and publish SHA-256 checksums for independent verification.
 
 The project intends to apply for the free open-source signing service provided
@@ -24,7 +24,7 @@ signing accounts must use multi-factor authentication.
 
 ## Privacy
 
-See [PRIVACY.md](PRIVACY.md). xMediaPlayerx does not transfer information to
+See [PRIVACY.md](PRIVACY.md). ReelFerry does not transfer information to
 developer-operated systems. Network access occurs only for features requested
 by the user, including local Apple TV discovery/casting, direct media URLs, and
 the optional verified media-tools installation.
