@@ -14,13 +14,13 @@ def test_package_metadata_and_runtime_version_match_reelferry_brand():
         project = tomllib.load(stream)["project"]
 
     assert project["name"] == "reelferry"
-    assert project["version"] == __version__ == "0.5.0"
+    assert project["version"] == __version__ == "0.5.1"
     assert project["scripts"] == {"reelferry": "reelferry.app:main"}
     version_info = (
         ROOT / "assets" / "reelferry-version-info.txt"
     ).read_text(encoding="utf-8")
     assert "StringStruct('ProductName', 'ReelFerry')" in version_info
-    assert "StringStruct('ProductVersion', '0.5.0.0')" in version_info
+    assert "StringStruct('ProductVersion', '0.5.1.0')" in version_info
 
 
 def test_runtime_qml_uses_only_the_current_visible_brand():
@@ -41,6 +41,16 @@ def test_reelferry_icon_assets_are_valid_and_multiresolution():
     ) as master:
         assert master.mode == "RGBA"
         assert master.size == (1024, 1024)
+    with Image.open(
+        ROOT / "assets" / "branding" / "reelferry-logo.png"
+    ) as github:
+        assert github.mode == "RGBA"
+        assert github.size == (512, 512)
+    with Image.open(
+        ROOT / "assets" / "branding" / "reelferry-social-preview.png"
+    ) as social:
+        assert social.mode == "RGB"
+        assert social.size == (1280, 640)
     with Image.open(
         ROOT
         / "src"

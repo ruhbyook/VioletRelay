@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 - 2026-07-30
+
+- Rebuilt the ReelFerry **R** as a clean geometric silhouette that remains
+  recognizable at Windows taskbar and file-icon sizes.
+- Reduced the glow, simplified the play symbol, and removed the broken-looking
+  bowl produced by the original stroked construction.
+- Added dedicated, cache-busted GitHub logo artwork and a branded social
+  preview image.
+
 ## 0.5.0 - 2026-07-30
 
 - Renamed the application, Python package, executable, portable folder, release

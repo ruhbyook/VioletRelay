@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reelferry"
-version = "0.5.0"
+version = "0.5.1"
 description = "A cinematic Windows media player with Apple TV casting"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"

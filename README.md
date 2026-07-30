@@ -1,7 +1,7 @@
 # ReelFerry
 
 <p align="center">
-  <img src="src/reelferry/qml/assets/reelferry-icon.png" width="112" alt="ReelFerry icon">
+  <img src="assets/branding/reelferry-logo.png" width="112" alt="ReelFerry icon">
 </p>
 
 <p align="center"><strong>Play here. Watch there.</strong></p>
