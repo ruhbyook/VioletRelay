@@ -1,4 +1,4 @@
-# Violet Relay
+# Violet Relay - Free Windows Media Player with Apple TV AirPlay Casting
 
 <p align="center">
   <img src="assets/branding/violetrelay-logo.png" width="112" alt="Violet Relay icon">
@@ -10,12 +10,23 @@
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-7C5CFF)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/ruhbyook/VioletRelay?include_prereleases)](https://github.com/ruhbyook/VioletRelay/releases/latest)
 
-Violet Relay is a free Windows 11 media player for local audio, video, and
-direct media URLs. It includes subtitles, a session queue, fullscreen playback,
-hardware decoding, playback-speed controls, and automatic resume positions.
+Violet Relay is a free and open-source Windows 11 media player for local MKV,
+MP4, MOV, audio, and other video files. It plays media on the PC and can
+optionally cast local video from Windows to Apple TV over AirPlay, including a
+selected embedded or external subtitle track.
 
 Apple TV casting is an optional extra. You can use Violet Relay entirely as a
 local player without owning an Apple TV or enabling network discovery.
+
+## What Violet Relay is for
+
+| Need | Violet Relay |
+| --- | --- |
+| Play local video and audio on Windows 11 | Hardware-accelerated playback, fullscreen controls, queues, tracks, and resume history |
+| Cast an MKV or other local video from Windows to Apple TV | Direct streaming, fast remuxing, or automatic hardware conversion as required |
+| Watch Apple TV playback with subtitles | Burns the selected embedded track or external subtitle into the outgoing stream |
+| Resume a long movie or audiobook later | Saves unfinished local-media positions automatically |
+| Avoid accounts, ads, subscriptions, and telemetry | GPL-licensed, free, open source, and local-first |
 
 ## Highlights
 
@@ -37,6 +48,12 @@ local player without owning an Apple TV or enabling network discovery.
 - Burn selected subtitles into the cast when the receiver cannot render them.
 - Use NVIDIA, AMD, Intel, or CPU conversion paths according to available hardware.
 - Pause, resume, seek, stop, retry, or continue locally after a disconnection.
+
+## Windows and Apple TV guides
+
+- [How to cast an MKV from Windows 11 to Apple TV](docs/guides/cast-mkv-windows-to-apple-tv.md)
+- [How to cast video with subtitles from Windows to Apple TV](docs/guides/cast-subtitles-windows-to-apple-tv.md)
+- [Free AirPlay video casting from Windows 11](docs/guides/airplay-video-windows-11.md)
 
 ## Requirements
 

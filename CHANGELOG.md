@@ -6,6 +6,8 @@
   starting a cast.
 - Documented that changing the subtitle during an active cast requires stopping,
   choosing the new track, and casting again.
+- Added focused MKV, subtitle, and Windows AirPlay casting guides plus clearer
+  free/open-source discovery copy and package keywords.
 
 ## 0.6.2 - 2026-07-30
 

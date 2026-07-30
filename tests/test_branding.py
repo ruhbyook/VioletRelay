@@ -48,8 +48,26 @@ def test_public_copy_presents_apple_tv_as_optional_and_uses_current_brand():
 
     assert "Apple TV casting is an optional extra" in public_copy
     assert "Only if you want Apple TV casting" in public_copy
+    assert "Free Windows Media Player with Apple TV AirPlay Casting" in public_copy
+    assert "free and open-source Windows 11 media player" in public_copy
     assert "ReelFerry" not in public_copy
     assert "xMediaPlayerx" not in public_copy
+
+
+def test_search_focused_guides_cover_primary_use_cases():
+    guides = {
+        "cast-mkv-windows-to-apple-tv.md": "Cast MKV from Windows 11 to Apple TV",
+        "cast-subtitles-windows-to-apple-tv.md": (
+            "Cast Video with Subtitles from Windows to Apple TV"
+        ),
+        "airplay-video-windows-11.md": "AirPlay Video from Windows 11 to Apple TV",
+    }
+
+    for filename, heading in guides.items():
+        copy = (ROOT / "docs" / "guides" / filename).read_text(encoding="utf-8")
+        assert f"# How to {heading}" in copy
+        assert "Violet Relay" in copy
+        assert "releases/latest" in copy
 
 
 def test_icon_buttons_use_normalized_vector_geometry():

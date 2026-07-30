@@ -10,7 +10,19 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-keywords = ["airplay", "apple-tv", "media-player", "qt", "windows"]
+keywords = [
+  "airplay",
+  "airplay2",
+  "apple-tv",
+  "casting",
+  "ffmpeg",
+  "free-media-player",
+  "mkv",
+  "open-source",
+  "subtitles",
+  "video-player",
+  "windows",
+]
 dependencies = [
   "platformdirs==4.3.8",
   "pyatv==0.18.0",
