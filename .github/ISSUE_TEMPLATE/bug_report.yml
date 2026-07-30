@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Violet Relay version
-      placeholder: "0.5.3"
+      placeholder: "0.6.2"
     validations:
       required: true
   - type: input
@@ -24,11 +24,9 @@ body:
   - type: input
     id: apple-tv
     attributes:
-      label: Apple TV and tvOS version
-      description: Enter "not applicable" for local-playback problems.
+      label: Apple TV and tvOS version (casting issues only)
+      description: Leave this blank for local-playback and interface problems.
       placeholder: "Apple TV 4K, tvOS 26.5"
-    validations:
-      required: true
   - type: input
     id: gpu
     attributes:

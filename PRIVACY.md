@@ -48,11 +48,6 @@ Windows file integration. Deleting the Violet Relay local application-data
 directories after closing the program removes all remaining local data,
 including pairing credentials, resume history, tools, and logs.
 
-When upgrading, Violet Relay performs a local one-time merge from the former
-`%LOCALAPPDATA%\ReelFerry` and `%LOCALAPPDATA%\xMediaPlayerx` locations into
-`%LOCALAPPDATA%\VioletRelay`. Existing newer files are never overwritten, and
-nothing is transmitted during this migration.
-
 ## Bug reports
 
 Diagnostic logs can still contain filenames, local paths, device names, network

@@ -999,7 +999,7 @@ ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 12
             Text { text: "Violet Relay " + Qt.application.version; color: root.textPrimary; font.pixelSize: 20; font.weight: Font.DemiBold }
-            Text { text: "Play here. Watch there.  ·  Previously ReelFerry"; color: root.textSecondary; font.pixelSize: 12 }
+            Text { text: "Play here. Watch there."; color: root.textSecondary; font.pixelSize: 12 }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#30384D" }
             Text { text: "Media tools"; color: root.textPrimary; font.pixelSize: 15; font.weight: Font.DemiBold }
             RowLayout {

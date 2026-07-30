@@ -25,7 +25,10 @@ Before publishing:
 1. Keep the version synchronized in `pyproject.toml`,
    `src/violetrelay/__init__.py`, and `assets/violetrelay-version-info.txt`.
    `tests/test_branding.py` enforces this.
-2. Verify every item in the physical Apple TV checklist in `README.md`.
+2. For releases that change or make new claims about casting, repeat discovery,
+   pairing, playback, subtitles, seeking, stop, reconnect, and completion tests
+   on the supported physical Apple TV hardware. Automated tests cover the
+   protocol boundary but cannot certify a real tvOS receiver.
 3. Publish the application ZIP, exact application source archive,
    `SHA256SUMS.txt`, license, and notices together on the GitHub release.
 4. Publish this application's complete GPL source at the same revision as the

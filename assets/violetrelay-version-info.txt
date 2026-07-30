@@ -19,12 +19,12 @@ VSVersionInfo(
             'FileDescription',
             'Violet Relay media player'
           ),
-          StringStruct('FileVersion', '0.6.1.0'),
+          StringStruct('FileVersion', '0.6.2.0'),
           StringStruct('InternalName', 'VioletRelay'),
           StringStruct('LegalCopyright', 'Copyright © 2026 Violet Relay contributors'),
           StringStruct('OriginalFilename', 'VioletRelay.exe'),
           StringStruct('ProductName', 'Violet Relay'),
-          StringStruct('ProductVersion', '0.6.1.0')
+          StringStruct('ProductVersion', '0.6.2.0')
         ]
       )
     ]),

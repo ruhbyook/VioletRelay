@@ -10,23 +10,49 @@
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-7C5CFF)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/ruhbyook/VioletRelay?include_prereleases)](https://github.com/ruhbyook/VioletRelay/releases/latest)
 
-Violet Relay is a cinematic Windows 11 media player that plays local audio and
-video files and direct media URLs, maintains a session queue, remembers local
-playback positions, renders SRT subtitles, and casts media to Apple TV using
-AirPlay.
+Violet Relay is a free Windows 11 media player for local audio, video, and
+direct media URLs. It includes subtitles, a session queue, fullscreen playback,
+hardware decoding, playback-speed controls, and automatic resume positions.
 
-This is an unofficial beta. Its AirPlay support is built on the reverse-engineered
-`pyatv` project rather than an Apple-provided Windows SDK. It casts media playback;
-it does not mirror the Windows desktop and cannot play DRM-protected streaming
-services. Violet Relay is not affiliated with, endorsed by, or certified by Apple.
+Apple TV casting is an optional extra. You can use Violet Relay entirely as a
+local player without owning an Apple TV or enabling network discovery.
+
+## Highlights
+
+### Local playback
+
+- Open or drag in common audio and video files supported by Qt's FFmpeg backend.
+- Play direct MP4, MOV, and HLS media URLs.
+- Choose embedded audio and subtitle tracks or add an external subtitle file.
+- Resume long movies and audiobooks from the last saved position.
+- Use a session queue, fullscreen mode, seeking, volume, mute, and speed controls.
+- Add Violet Relay to Windows **Open with** without changing existing defaults.
+- Convert a locally unsupported codec to a compatible copy when needed.
+
+### Optional Apple TV casting
+
+- Discover and pair an Apple TV on the same private network.
+- Cast the media itself rather than mirror the Windows desktop.
+- Start compatible files directly and prepare incompatible formats automatically.
+- Burn selected subtitles into the cast when the receiver cannot render them.
+- Use NVIDIA, AMD, Intel, or CPU conversion paths according to available hardware.
+- Pause, resume, seek, stop, retry, or continue locally after a disconnection.
 
 ## Requirements
 
-- Windows 11 x64
-- An Apple TV on the same private network
-- Windows network discovery enabled
+For local playback:
 
-Python is not required for the portable release.
+- Windows 11 x64
+
+Only if you want Apple TV casting:
+
+- An Apple TV on the same private network
+- Windows network discovery and private-network firewall access
+
+Python is not required for the portable release. FFmpeg is also not required
+for ordinary compatible local playback. When casting or compatibility
+conversion needs the optional media tools, Violet Relay offers to download and
+verify them after you choose **Install**.
 
 ## Download
 
@@ -34,32 +60,118 @@ Download the latest ZIP from
 [GitHub Releases](https://github.com/ruhbyook/VioletRelay/releases/latest),
 extract the complete folder, and run `VioletRelay.exe`.
 
-This public beta is unsigned, so Windows may show **Windows protected your
-PC**. Verify the ZIP against the published `SHA256SUMS.txt`, then use **More
-info → Run anyway** only when it came from this repository.
+The public beta is unsigned, so Windows may show **Windows protected your PC**.
+Verify the ZIP against the included `SHA256SUMS.txt`, then use **More info ->
+Run anyway** only when the file came from this repository.
 
-The public ZIP does not redistribute FFmpeg. When casting or conversion needs
-the optional media tools, Violet Relay explains the 105 MB upstream download
-and starts it only after you choose **Install**. The archive and both
-executables are SHA-256 verified before use.
+The public ZIP does not redistribute FFmpeg. If you approve the optional media
+tools download, the archive and both executables are SHA-256 verified before
+use.
 
-## Upgrading from ReelFerry or xMediaPlayerx
+## Getting started
 
-Violet Relay 0.6.0 is the renamed continuation of ReelFerry and xMediaPlayerx.
-On first launch, it moves data from `%LOCALAPPDATA%\ReelFerry` and then the older
-`%LOCALAPPDATA%\xMediaPlayerx` location into `%LOCALAPPDATA%\VioletRelay`
-without duplicating large prepared-cast files. This preserves settings, playback
-positions, Apple TV pairing credentials, installed media tools, cached
-conversions, and logs.
+### Play on this PC
 
-Windows **Open with** and Default Apps registration is upgraded automatically.
-Violet Relay removes duplicate old-name entries but retains a small compatibility
-ProgID, so file types already assigned to `ReelFerry.Media` or
-`xMediaPlayerx.Video` continue opening in `VioletRelay.exe`. Choosing **Remove
-Windows file integration** removes the new registration and both compatibility
-entries.
+1. Choose **Open** or drag a media file onto the window.
+2. Use **CC** to select an embedded track or add an external subtitle file.
+3. Close the player whenever you like. Reopening unfinished local media offers
+   **Resume** or **Start over**.
 
-## Development setup
+Use **URL** for a direct, unauthenticated HTTP/HTTPS media URL. Web pages,
+YouTube pages, DRM services, and URLs requiring custom authentication headers
+are intentionally rejected.
+
+### Cast to Apple TV
+
+1. Put the PC and Apple TV on the same private network.
+2. Open **AirPlay**, scan, and select the receiver.
+3. Complete any AirPlay or Companion PIN prompts.
+4. Open media and choose **Cast**.
+
+If Windows Firewall prompts while casting a local file, allow Violet Relay on
+private networks. The Apple TV must be able to reach the temporary media server
+running on the PC.
+
+Use **Stop casting** to stop the receiver. Use **Continue here** to stop the
+receiver and resume locally at the last confirmed cast position.
+
+## Playback, subtitles, and resume history
+
+Local-media positions are saved atomically every 15 seconds and whenever
+playback pauses, stops, changes source, starts casting, or shuts down. A
+lightweight content identity preserves the position across renames without
+letting a replacement file at the same path inherit it. Violet Relay retains up
+to 500 unfinished positions for two years and removes a position after natural
+completion.
+
+Text subtitles such as SRT, ASS, SSA, and WebVTT can render locally. Image
+subtitles such as PGS can be burned into a compatibility copy after
+confirmation. Selecting a subtitle for Apple TV casting burns it into the
+temporary stream so the same captions appear on the television.
+
+## Casting and conversion
+
+Compatible files and direct HLS URLs start without a full conversion. Local
+files are delivered through temporary fragmented HLS, and compatible MKV or AVI
+streams can be copied into a short rolling buffer. This avoids waiting for an
+entire movie-sized output file before playback begins.
+
+When conversion is necessary, Violet Relay probes the installed graphics driver
+and tries NVIDIA NVENC, AMD AMF, Intel Quick Sync, then CPU encoding. Incompatible
+HDR sources can use a hardware HEVC streaming path or fall back to a cached
+1080p SDR copy. Conversion progress is cancellable, partial files are removed,
+and prepared copies are managed by a size-limited cache.
+
+A cast is shown as **Playing** only after the Apple TV reports playback and, for
+PC-hosted media, requests actual media bytes. Unexpected network loss leaves
+local playback paused and offers **Retry casting** or **Continue here**.
+
+## Windows integration
+
+Violet Relay registers itself per user as an available **Open with** handler on
+first launch. It does not take over file defaults automatically. In **Settings
+and About**, choose **Make Violet Relay a default player** to open the Windows
+Default Apps page, where Windows asks you to confirm each choice.
+
+If the portable folder moves, Violet Relay can repair the registered executable
+path. Choose **Remove Windows file integration** before permanently deleting the
+application if you want to remove its registry entries.
+
+## Privacy and local data
+
+Violet Relay has no telemetry, advertising, analytics, accounts, or
+developer-operated cloud service. Settings, resume history, encrypted pairing
+credentials, optional media tools, prepared files, and redacted diagnostic logs
+stay below `%LOCALAPPDATA%\VioletRelay`.
+
+Pairing credentials are encrypted with Windows DPAPI for the current Windows
+user. They cannot be moved to another user account or PC. Local media is served
+only while a cast needs it and is never uploaded to the project maintainer.
+See the full [privacy policy](PRIVACY.md).
+
+## Current boundaries
+
+- Windows 11 x64 only.
+- Direct, unauthenticated HTTP/HTTPS media URLs only.
+- No YouTube extraction, browser capture, DRM playback, desktop mirroring,
+  updater, telemetry, or persistent media library.
+- Compatible 4K/HDR may pass through unchanged. Incompatible sources use a
+  reliable conversion path, which may reduce them to 1080p SDR.
+- AirPlay integration is unofficial and may require adaptation after tvOS
+  updates.
+
+## AirPlay compatibility
+
+Violet Relay uses the current AirPlay 2 queue command on tvOS 26 because the
+legacy `pyatv` URL playback path no longer works reliably there. This path has
+been tested on a physical Apple TV 4K running tvOS 26.5 with direct URLs,
+PC-hosted files, subtitles, seeking, and stop/continue flows.
+
+AirPlay support is based on the reverse-engineered `pyatv` project rather than
+an Apple-provided Windows SDK. Violet Relay is not affiliated with, endorsed by,
+or certified by Apple.
+
+## Development
 
 Install Python 3.13, open PowerShell in the repository, and run:
 
@@ -68,117 +180,11 @@ Install Python 3.13, open PowerShell in the repository, and run:
 .\scripts\run.ps1
 ```
 
-The bootstrap creates `.venv`, installs the locked application dependencies, downloads the FFmpeg 8.1.2 release essentials ZIP from the Windows provider linked by ffmpeg.org, verifies its published SHA-256, and places `ffmpeg.exe` and `ffprobe.exe` under `vendor/ffmpeg/bin`.
+The bootstrap creates `.venv`, installs the locked dependencies, downloads the
+pinned FFmpeg build from a provider linked by ffmpeg.org, verifies its published
+SHA-256, and installs `ffmpeg.exe` and `ffprobe.exe` under `vendor/ffmpeg/bin`.
 
-If Windows Firewall prompts when casting a local file, allow Violet Relay/Python on private networks. Apple TV must be able to reach the temporary HTTP server created on the PC.
-
-## Usage
-
-- The player uses a purpose-built Windows icon and a compact Fluent-style
-  transport bar whose primary and secondary actions remain clear at small
-  window sizes.
-- Public builds can install the pinned FFmpeg media tools directly from the
-  upstream provider after explicit confirmation. Settings shows whether the
-  verified tools are available.
-- Open or drag local audio/video into the player, or use **URL** for a direct
-  MP4, MOV, or HLS URL. Remote URLs are checked off the UI thread before Qt
-  opens them. HTML pages are rejected explicitly, while extensionless HLS and
-  MP4 endpoints are recognized by their response metadata and media probe.
-- Local-media positions are saved atomically every 15 seconds and on pause,
-  stop, file changes, casting updates, and shutdown. Reopening an unfinished
-  item offers **Resume** or **Start over**. A lightweight content identity keeps
-  the position across renames while preventing a replacement file at the same
-  path from inheriting it. Up to 500 positions are retained for two years;
-  natural completion removes the saved position.
-- Add external SRT captions with the **CC** button.
-- Open **CC** to choose among embedded audio and subtitle tracks. Text tracks
-  such as ASS/SSA render locally; image subtitles such as PGS are burned into a
-  compatibility copy after confirmation.
-- External SRT renders immediately. ASS, SSA, WebVTT, SUP, and VobSub/IDX files
-  can be converted and burned in when required.
-- Open **AirPlay**, scan, and pair the Apple TV. AirPlay and Companion can each request a PIN once.
-- Select **Cast**. Compatible files start directly. Selected subtitles are burned
-  into a paced H.264/AAC HLS stream with hardware acceleration, so playback can
-  begin after a short buffer instead of waiting for a full-movie conversion.
-  Compatible H.264/HEVC MKV and AVI files are stream-copied straight into that
-  short HLS buffer, avoiding a complete intermediate MP4. Other incompatible
-  files are converted to a cached 1080p copy when live conversion is unavailable.
-- Local files are delivered as temporary fragmented HLS without another
-  encode. This avoids Apple TV's monolithic-MP4 probe failure while preserving
-  prepared conversions in the cache for later casts. Stream-copy output is
-  paced slightly ahead of playback so tvOS sees a stable rolling live edge
-  instead of trying to prefetch an entire movie at once.
-- A finite remote file is cached for conversion only when its server supplies
-  a verified size plus an ETag or Last-Modified revision. These values are part
-  of the cache key, preventing a changed file at the same URL from reusing a
-  stale prepared copy. Direct compatible URLs and live HLS do not require a
-  download or conversion cache.
-- Conversion probes the installed driver and uses NVIDIA NVENC, AMD AMF, or
-  Intel Quick Sync hardware acceleration in that order when available. If a
-  GPU rejects the source, the app automatically tries the next accelerator
-  and finally the CPU compatibility encoder.
-- On NVIDIA systems, text-subtitle streaming decodes and resizes supported
-  H.264, HEVC, and AV1 video on the GPU before subtitle rendering and HDR
-  tone-mapping. This keeps demanding 4K HDR casts safely ahead of playback
-  throughout the movie; unsupported CUDA inputs automatically retry the
-  compatible filter path.
-- Incompatible HDR sources can be prepared as a fast 10-bit HEVC HLS stream
-  through NVIDIA, AMD, or Intel hardware. Hardware HLS is paced just ahead of
-  playback and uses short, forced-IDR segments so Apple TV cannot chase a
-  rapidly advancing live edge. If that path is unavailable, the app safely
-  falls back to the cached 1080p SDR conversion.
-- The selected audio/subtitle tracks are preserved when remuxing or casting.
-- A cast is not labeled **Playing** until Apple TV reports playback and, for
-  PC-hosted media, requests actual video bytes. A receiver that only accepts the
-  queue command now produces a specific network/playlist error instead of a
-  false success screen.
-- tvOS URL sessions that finish in a paused final-frame state are normalized to
-  natural completion so the session queue advances. An explicit user pause is
-  kept distinct and never advances the queue.
-- Push metadata is used when Apple TV exposes it, with one-second polling as a
-  fallback. Receiver volume appears only when the active Apple TV output reports
-  that it supports setting volume.
-- Generated HLS casts use the full movie timeline. Seeking restarts the temporary
-  producer at the requested absolute position after a short buffer, and burned
-  subtitles retain their original movie timestamps after starting or seeking
-  beyond zero.
-- If Qt cannot play a local codec, the app offers a cancellable local
-  compatibility conversion and resumes from the previous position.
-- The portable Windows build registers itself per-user as an available handler
-  on first launch, so supported movie files offer Violet Relay under **Open
-  with** without changing any existing defaults. Registration is automatically
-  repaired if the portable folder moves.
-- Open **Settings and About** and choose **Make Violet Relay a default player**
-  to open Violet Relay's Windows Default Apps page. Windows keeps control of
-  the actual choice and requires your confirmation.
-- **Remove Windows file integration** removes the portable app's Open with and
-  Default Apps registry entries before deleting or moving the application.
-- Double-clicked/command-line files open immediately. If the portable folder is
-  moved later, the same panel detects the stale executable path and offers to
-  repair it.
-- Use **Continue here** to stop Apple TV and resume locally at the last known position.
-- If the network drops unexpectedly, local playback stays paused at the last
-  confirmed position and the app offers **Retry casting** or **Continue here**.
-- The last successfully selected Apple TV is remembered and shown first on the
-  next scan. **Settings and About** exposes the prepared-copy cache limit,
-  cache cleanup, and the diagnostic log folder.
-
-Pairing data, settings, playback history, cache files, and redacted logs live
-below `%LOCALAPPDATA%\VioletRelay` (the exact cache/config split follows
-Windows platform conventions). Playback history is local to the Windows user
-and is never sent over the network. Pairing credentials are encrypted with
-Windows DPAPI for the current user; moving that file to another Windows account
-or PC requires pairing again. If pairing data is corrupt or belongs to another
-account, it is preserved with an `.unreadable-*` suffix and the app starts
-unpaired so recovery does not block local playback.
-
-Network, conversion, settings, and Windows-integration failures are contained at
-their service boundary and shown in the interface with non-empty, credential-
-redacted messages. Failed or cancelled conversions remove partial files; failed
-cast startup and shutdown paths also close Apple TV connections, local HTTP
-servers, hardware encoders, and worker threads before returning control.
-
-## Test and package
+Run the automated tests and build the portable application with:
 
 ```powershell
 .\scripts\test.ps1
@@ -186,72 +192,30 @@ servers, hardware encoders, and worker threads before returning control.
 .\scripts\build.ps1
 ```
 
-The portable build is produced at `dist\VioletRelay\VioletRelay.exe`. It is
-currently unsigned and intended for local use and beta testing. See
-[`RELEASING.md`](RELEASING.md) for the guarded release archive process.
-The fixture script creates short direct, remux, transcode, HDR, embedded/external
-subtitle, Unicode-path, and malformed-media samples under
-`build\test-fixtures`. `test.ps1` also runs those fixtures through the real
-bundled FFmpeg/ffprobe binaries; use `-SkipMediaIntegration` only when that
-separate integration pass is intentionally unavailable.
-
-## Physical Apple TV checklist
-
-Automated tests mock the protocol boundary. Before treating a build as verified, test these on the real device:
-
-1. Discovery, AirPlay pairing, Companion pairing, and credential reuse after restart.
-2. Direct H.264/AAC MP4 and a public HLS stream.
-3. MKV stream-copy startup, incompatible-codec transcoding, and SRT burn-in.
-4. Hardware conversion on each GPU vendor intended for the release, plus the
-   forced CPU fallback. GPU paths require a current vendor graphics driver.
-5. Pause, resume, seek, stop, natural queue advancement, and Continue Locally.
-   On the tvOS 26.5 reference receiver, the automated 20-second hardware smoke
-   test must show position advancement and a natural `ended` state.
-6. Wi-Fi interruption, Apple TV sleep/wake, a blocked firewall, and app shutdown during conversion.
-
-## Current boundaries
-
-- Direct, unauthenticated HTTP/HTTPS media URLs only.
-- No YouTube page extraction, browser capture, DRM, AirPlay mirroring, updater, telemetry, or persistent media library.
-- Compatible 4K/HDR may be passed through. Incompatible sources are converted to a reliable 1080p SDR fallback.
-
-## tvOS 26 compatibility note
-
-`pyatv`'s legacy `/play` URL path has a confirmed regression on Apple TV 4K devices
-running tvOS 26.x. Violet Relay uses the current AirPlay 2 PTP session and
-`insertPlayQueueItem` command used by Apple senders instead. This path was verified
-on a physical Apple TV 4K running tvOS 26.5 with direct URLs and PC-hosted local
-files. VLC for Apple TV remains an automatic emergency fallback if modern session
-setup fails. Earlier tvOS releases continue to use `pyatv`'s direct AirPlay path.
+The build is created at `dist\VioletRelay\VioletRelay.exe`. Automated tests mock
+the AirPlay protocol boundary; casting releases must also be checked on physical
+hardware. See [RELEASING.md](RELEASING.md) for the complete release checklist.
 
 ## Support development
 
-Every feature is free and remains available without payment. If Violet Relay
-is useful to you, optional crypto tips can support hardware testing and future
-development:
+Every feature is free. If Violet Relay is useful to you, optional crypto tips
+can support hardware testing and future development:
 
 | Asset | Network | Public receiving address |
 | --- | --- | --- |
 | BTC | Bitcoin | `bc1q4udt9zp44v23c3geph6tq5h5a659xa0qqph2es` |
 | ETH or USDC | Ethereum Mainnet only; USDC must be ERC-20 | `0xAd53452fB8ae492a96154D12aa671D3331AA6680` |
 
-The in-app heart button displays offline QR codes and copies these exact public
-addresses. It never connects a wallet or requests a seed phrase, private key,
-account, or personal information. Check the asset and network before sending:
-crypto transfers are irreversible. Tips are optional, do not unlock features,
-and are not represented as tax-deductible charitable donations.
+The in-app heart button displays offline QR codes and copies these public
+addresses. It never connects a wallet or asks for a seed phrase, private key,
+account, or personal information. Check the asset and network before sending;
+crypto transfers are irreversible. Tips are optional and unlock nothing.
 
 ## License
 
-Violet Relay is free software licensed under GPL-3.0-or-later. All functionality
-is available without payment. Tips do not change the license.
-
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-[FFMPEG_SOURCE.md](FFMPEG_SOURCE.md) before redistributing a build. Public
-Violet Relay packages intentionally acquire FFmpeg directly from its provider
-after user consent rather than redistributing that static binary. Developer or
-private builds that bundle it remain subject to its GPLv3 corresponding-source
-requirements.
+Violet Relay is free software licensed under GPL-3.0-or-later. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
+[FFMPEG_SOURCE.md](FFMPEG_SOURCE.md) before redistributing a build.
 
 See also [Privacy](PRIVACY.md), [Security](SECURITY.md),
 [Code signing policy](CODE_SIGNING_POLICY.md),
@@ -260,4 +224,4 @@ See also [Privacy](PRIVACY.md), [Security](SECURITY.md),
 AirPlay and Apple TV are trademarks of Apple Inc. Violet Relay uses these names
 only to describe compatibility.
 
-Copyright © 2026 Violet Relay contributors.
+Copyright (c) 2026 Violet Relay contributors.
