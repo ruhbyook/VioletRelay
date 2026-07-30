@@ -14,13 +14,13 @@ def test_package_metadata_and_runtime_version_match_violetrelay_brand():
         project = tomllib.load(stream)["project"]
 
     assert project["name"] == "violetrelay"
-    assert project["version"] == __version__ == "0.6.0"
+    assert project["version"] == __version__ == "0.6.1"
     assert project["scripts"] == {"violetrelay": "violetrelay.app:main"}
     version_info = (
         ROOT / "assets" / "violetrelay-version-info.txt"
     ).read_text(encoding="utf-8")
     assert "StringStruct('ProductName', 'Violet Relay')" in version_info
-    assert "StringStruct('ProductVersion', '0.6.0.0')" in version_info
+    assert "StringStruct('ProductVersion', '0.6.1.0')" in version_info
 
 
 def test_runtime_qml_uses_only_the_current_visible_brand():

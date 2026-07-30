@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 - 2026-07-30
+
+- Restored the more distinctive arched relay icon chosen by the project owner.
+- Rebuilt the transparent master, Windows ICO, in-app artwork, repository logo,
+  and social preview with a clean edge matte.
+
 ## 0.6.0 - 2026-07-30
 
 - Renamed the application, package, executable, portable folder, release
