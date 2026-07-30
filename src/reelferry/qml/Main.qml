@@ -86,6 +86,10 @@ ApplicationWindow {
         implicitHeight: 40
         implicitWidth: Math.max(42, contentItem.implicitWidth + 24)
         padding: 0
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
         font.family: "Segoe UI Variable"
         font.pixelSize: 14
         font.weight: Font.DemiBold
@@ -134,6 +138,10 @@ ApplicationWindow {
         implicitWidth: 40
         implicitHeight: 40
         padding: 0
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
         font.family: "Segoe UI Variable"
         font.pixelSize: 14
         font.weight: Font.DemiBold
@@ -176,6 +184,10 @@ ApplicationWindow {
         implicitWidth: primary ? 48 : 40
         implicitHeight: primary ? 48 : 40
         padding: 0
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
         contentItem: Item {
             VectorIcon {
                 anchors.centerIn: parent
@@ -229,59 +241,80 @@ ApplicationWindow {
         anchors.margins: root.videoFullscreen ? 0 : 18
         spacing: root.videoFullscreen ? 0 : 14
 
-        RowLayout {
+        Item {
+            id: headerBar
             visible: !root.videoFullscreen
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? 48 : 0
-            spacing: 12
 
-            Image {
-                source: "assets/reelferry-icon.png"
-                sourceSize.width: 76
-                sourceSize.height: 76
-                Layout.preferredWidth: 40
-                Layout.preferredHeight: 40
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-                mipmap: true
+            Row {
+                id: brandGroup
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 10
+
+                Image {
+                    source: "assets/reelferry-icon.png"
+                    sourceSize.width: 76
+                    sourceSize.height: 76
+                    width: 40
+                    height: 40
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
+                }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+                    Text { text: "ReelFerry"; color: root.textPrimary; font.family: "Segoe UI Variable"; font.pixelSize: 17; font.weight: Font.Bold }
+                    Text {
+                        visible: headerBar.width >= 1100
+                        text: airplay.casting ? "Casting to " + airplay.castDeviceName : "Play here. Watch there."
+                        color: airplay.casting ? root.cyan : root.textSecondary
+                        font.pixelSize: 11
+                    }
+                }
             }
-            ColumnLayout {
-                spacing: 0
-                Text { text: "ReelFerry"; color: root.textPrimary; font.family: "Segoe UI Variable"; font.pixelSize: 17; font.weight: Font.Bold }
-                Text { text: airplay.casting ? "Casting to " + airplay.castDeviceName : "Play here. Watch there."; color: airplay.casting ? root.cyan : root.textSecondary; font.pixelSize: 11 }
-            }
-            Item { Layout.fillWidth: true }
-            GlowButton {
-                iconName: "plus"
-                text: "Open"
-                onClicked: fileDialog.open()
-            }
-            GlowButton {
-                iconName: "link"
-                text: playback.urlOpening ? "Checking URL…" : "URL"
-                enabled: !playback.urlOpening
-                onClicked: urlDialog.open()
-            }
-            GlowButton {
-                iconName: "cast"
-                text: airplay.scanning ? "Scanning…" : airplay.casting ? airplay.castDeviceName : "AirPlay"
-                enabled: !playback.fallbackPreparing
-                onClicked: castPanel.open()
-            }
-            RoundButtonX {
-                iconName: "grid"
-                ToolTip.text: "Toggle Up Next"
-                onClicked: root.queueVisible = !root.queueVisible
-            }
-            RoundButtonX {
-                iconName: "heart"
-                ToolTip.text: "Support development"
-                onClicked: supportDialog.open()
-            }
-            RoundButtonX {
-                iconName: "info"
-                ToolTip.text: "Settings and about"
-                onClicked: aboutDialog.open()
+
+            Row {
+                id: headerActions
+                objectName: "headerActions"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+
+                GlowButton {
+                    iconName: "plus"
+                    text: "Open"
+                    onClicked: fileDialog.open()
+                }
+                GlowButton {
+                    iconName: "link"
+                    text: playback.urlOpening ? "Checking URL…" : "URL"
+                    enabled: !playback.urlOpening
+                    onClicked: urlDialog.open()
+                }
+                GlowButton {
+                    iconName: "cast"
+                    text: airplay.scanning ? "Scanning…" : airplay.casting ? airplay.castDeviceName : "AirPlay"
+                    enabled: !playback.fallbackPreparing
+                    onClicked: castPanel.open()
+                }
+                RoundButtonX {
+                    iconName: "grid"
+                    ToolTip.text: "Toggle Up Next"
+                    onClicked: root.queueVisible = !root.queueVisible
+                }
+                RoundButtonX {
+                    iconName: "heart"
+                    ToolTip.text: "Support development"
+                    onClicked: supportDialog.open()
+                }
+                RoundButtonX {
+                    iconName: "info"
+                    ToolTip.text: "Settings and about"
+                    onClicked: aboutDialog.open()
+                }
             }
         }
 
@@ -562,14 +595,20 @@ ApplicationWindow {
                                 Behavior on color { ColorAnimation { duration: 120 } }
                             }
                         }
-                        RowLayout {
+                        Item {
+                            id: playbackControlsRow
                             Layout.fillWidth: true
-                            spacing: 9
+                            Layout.preferredHeight: 52
+
                             Rectangle {
+                                id: primaryTransport
+                                objectName: "primaryTransport"
                                 implicitWidth: transportRow.implicitWidth + 10
                                 implicitHeight: 52
-                                Layout.preferredWidth: implicitWidth
-                                Layout.preferredHeight: implicitHeight
+                                width: implicitWidth
+                                height: implicitHeight
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.verticalCenter: parent.verticalCenter
                                 radius: height / 2
                                 color: "#121824"
                                 border.color: "#293349"
@@ -596,6 +635,8 @@ ApplicationWindow {
                                 }
                             }
                             Text {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: root.formatTime(airplay.casting ? airplay.castPosition * 1000 : playback.position)
                                       + "  /  "
                                       + root.formatTime(airplay.casting ? airplay.castDuration * 1000 : playback.duration)
@@ -603,93 +644,101 @@ ApplicationWindow {
                                 font.family: "Cascadia Mono"
                                 font.pixelSize: 11
                             }
-                            Item { Layout.fillWidth: true }
-                            RoundButtonX {
-                                iconName: playback.muted ? "muted" : "volume"
-                                ToolTip.text: playback.muted ? "Unmute" : "Mute"
-                                visible: !airplay.casting
-                                onClicked: playback.toggleMute()
-                            }
-                            Slider {
-                                id: volumeSlider
-                                visible: !airplay.casting && stage.width > 720
-                                Layout.preferredWidth: 105
-                                from: 0
-                                to: 1
-                                value: playback.volume
-                                onMoved: playback.setVolume(value)
-                                background: Rectangle {
-                                    x: volumeSlider.leftPadding
-                                    y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                    width: volumeSlider.availableWidth
-                                    height: 3
-                                    radius: 2
-                                    color: "#343C52"
-                                    Rectangle {
-                                        width: volumeSlider.visualPosition * parent.width
-                                        height: parent.height
-                                        radius: parent.radius
+
+                            Row {
+                                id: playbackUtilities
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 9
+
+                                RoundButtonX {
+                                    iconName: playback.muted ? "muted" : "volume"
+                                    ToolTip.text: playback.muted ? "Unmute" : "Mute"
+                                    visible: !airplay.casting
+                                    onClicked: playback.toggleMute()
+                                }
+                                Slider {
+                                    id: volumeSlider
+                                    visible: !airplay.casting && stage.width > 720
+                                    width: visible ? 105 : 0
+                                    height: 40
+                                    from: 0
+                                    to: 1
+                                    value: playback.volume
+                                    onMoved: playback.setVolume(value)
+                                    background: Rectangle {
+                                        x: volumeSlider.leftPadding
+                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                        width: volumeSlider.availableWidth
+                                        height: 3
+                                        radius: 2
+                                        color: "#343C52"
+                                        Rectangle {
+                                            width: volumeSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: parent.radius
+                                            color: root.accentLight
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
+                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                        width: 12
+                                        height: 12
+                                        radius: 6
                                         color: root.accentLight
                                     }
                                 }
-                                handle: Rectangle {
-                                    x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-                                    y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                    width: 12
-                                    height: 12
-                                    radius: 6
-                                    color: root.accentLight
+                                ComboBox {
+                                    id: speedControl
+                                    visible: !airplay.casting
+                                    property var rates: [0.5, 0.75, 1, 1.25, 1.5, 2]
+                                    model: ["0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×"]
+                                    currentIndex: Math.max(0, rates.indexOf(playback.playbackRate))
+                                    width: visible ? 88 : 0
+                                    height: 38
+                                    leftPadding: 14
+                                    rightPadding: 30
+                                    font.family: "Segoe UI Variable"
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    onActivated: playback.setPlaybackRate(rates[currentIndex])
+                                    contentItem: Text {
+                                        leftPadding: speedControl.leftPadding
+                                        rightPadding: speedControl.rightPadding
+                                        text: speedControl.displayText
+                                        font: speedControl.font
+                                        color: root.textPrimary
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    indicator: Text {
+                                        x: speedControl.width - width - 13
+                                        y: (speedControl.height - height) / 2 - 1
+                                        text: "▾"
+                                        color: speedControl.hovered ? root.accentLight : root.textSecondary
+                                        font.family: "Segoe UI Symbol"
+                                        font.pixelSize: 14
+                                    }
+                                    background: Rectangle {
+                                        radius: height / 2
+                                        color: speedControl.down ? "#302650" : speedControl.hovered ? "#242039" : "#171D2A"
+                                        border.color: speedControl.activeFocus ? root.accentLight : speedControl.hovered ? "#51447B" : "#2B3244"
+                                        border.width: 1
+                                        Behavior on color { ColorAnimation { duration: 160 } }
+                                        Behavior on border.color { ColorAnimation { duration: 160 } }
+                                    }
                                 }
-                            }
-                            ComboBox {
-                                id: speedControl
-                                visible: !airplay.casting
-                                property var rates: [0.5, 0.75, 1, 1.25, 1.5, 2]
-                                model: ["0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×"]
-                                currentIndex: Math.max(0, rates.indexOf(playback.playbackRate))
-                                Layout.preferredWidth: 88
-                                Layout.preferredHeight: 38
-                                leftPadding: 14
-                                rightPadding: 30
-                                font.family: "Segoe UI Variable"
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                                onActivated: playback.setPlaybackRate(rates[currentIndex])
-                                contentItem: Text {
-                                    leftPadding: speedControl.leftPadding
-                                    rightPadding: speedControl.rightPadding
-                                    text: speedControl.displayText
-                                    font: speedControl.font
-                                    color: root.textPrimary
-                                    verticalAlignment: Text.AlignVCenter
+                                RoundButtonX {
+                                    iconName: "captions"
+                                    visible: !airplay.casting
+                                    ToolTip.text: "Audio and subtitle tracks"
+                                    onClicked: tracksPanel.open()
                                 }
-                                indicator: Text {
-                                    x: speedControl.width - width - 13
-                                    y: (speedControl.height - height) / 2 - 1
-                                    text: "▾"
-                                    color: speedControl.hovered ? root.accentLight : root.textSecondary
-                                    font.family: "Segoe UI Symbol"
-                                    font.pixelSize: 14
+                                RoundButtonX {
+                                    iconName: root.videoFullscreen ? "exit-fullscreen" : "fullscreen"
+                                    ToolTip.text: root.videoFullscreen ? "Exit full screen" : "Full screen"
+                                    onClicked: root.toggleVideoFullscreen()
                                 }
-                                background: Rectangle {
-                                    radius: height / 2
-                                    color: speedControl.down ? "#302650" : speedControl.hovered ? "#242039" : "#171D2A"
-                                    border.color: speedControl.activeFocus ? root.accentLight : speedControl.hovered ? "#51447B" : "#2B3244"
-                                    border.width: 1
-                                    Behavior on color { ColorAnimation { duration: 160 } }
-                                    Behavior on border.color { ColorAnimation { duration: 160 } }
-                                }
-                            }
-                            RoundButtonX {
-                                iconName: "captions"
-                                visible: !airplay.casting
-                                ToolTip.text: "Audio and subtitle tracks"
-                                onClicked: tracksPanel.open()
-                            }
-                            RoundButtonX {
-                                iconName: root.videoFullscreen ? "exit-fullscreen" : "fullscreen"
-                                ToolTip.text: root.videoFullscreen ? "Exit full screen" : "Full screen"
-                                onClicked: root.toggleVideoFullscreen()
                             }
                         }
                     }
