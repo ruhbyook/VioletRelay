@@ -876,6 +876,13 @@ ApplicationWindow {
                 GlowButton { text: airplay.scanning ? "Scanning…" : "Rescan"; enabled: !airplay.scanning; onClicked: airplay.scan() }
             }
             Text { Layout.fillWidth: true; text: "Devices must be on the same private network."; color: root.textSecondary; wrapMode: Text.Wrap }
+            Text {
+                Layout.fillWidth: true
+                text: "Want subtitles on the TV? Select them with CC before you press Cast."
+                color: "#C9BEFF"
+                wrapMode: Text.Wrap
+                font.pixelSize: 12
+            }
             ListView {
                 id: deviceView
                 Layout.fillWidth: true

@@ -86,7 +86,13 @@ are intentionally rejected.
 1. Put the PC and Apple TV on the same private network.
 2. Open **AirPlay**, scan, and select the receiver.
 3. Complete any AirPlay or Companion PIN prompts.
-4. Open media and choose **Cast**.
+4. Before casting, use **CC** to select the subtitle track or external subtitle
+   file you want on the television.
+5. Open **AirPlay** again and choose **Cast**.
+
+The selected subtitle is fixed when casting starts because Violet Relay builds
+it into the outgoing stream. To change subtitles during a cast, stop casting,
+choose the new track with **CC**, and start the cast again.
 
 If Windows Firewall prompts while casting a local file, allow Violet Relay on
 private networks. The Apple TV must be able to reach the temporary media server

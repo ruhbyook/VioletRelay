@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 - 2026-07-30
+
+- Added an AirPlay-panel reminder to select subtitles with **CC** before
+  starting a cast.
+- Documented that changing the subtitle during an active cast requires stopping,
+  choosing the new track, and casting again.
+
 ## 0.6.2 - 2026-07-30
 
 - Rewrote the project overview around Violet Relay's standalone local playback
