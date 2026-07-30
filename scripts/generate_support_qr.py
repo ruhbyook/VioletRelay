@@ -11,13 +11,13 @@ from qrcode.constants import ERROR_CORRECT_Q
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from reelferry.support import (  # noqa: E402
+from violetrelay.support import (  # noqa: E402
     BITCOIN_URI,
     ETHEREUM_ADDRESS,
 )
 
 
-OUTPUT_DIRECTORY = ROOT / "src" / "reelferry" / "qml" / "assets"
+OUTPUT_DIRECTORY = ROOT / "src" / "violetrelay" / "qml" / "assets"
 QR_SIZE = 512
 
 

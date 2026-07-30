@@ -1,16 +1,16 @@
 import json
 from pathlib import Path
 
-from reelferry.controllers.playback import PlaybackController
-from reelferry.models import QueueModel
-from reelferry.services.playback_history import (
+from violetrelay.controllers.playback import PlaybackController
+from violetrelay.models import QueueModel
+from violetrelay.services.playback_history import (
     MIN_RESUME_MS,
     MediaIdentity,
     PlaybackHistory,
     finish_window_ms,
     is_effectively_complete,
 )
-from reelferry.settings import SettingsStore
+from violetrelay.settings import SettingsStore
 
 
 def media_file(path: Path, marker: bytes = b"a") -> Path:

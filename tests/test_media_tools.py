@@ -7,7 +7,7 @@ import zipfile
 
 import pytest
 
-from reelferry.services.media_tools import MediaToolsInstaller
+from violetrelay.services.media_tools import MediaToolsInstaller
 
 
 class Response(BytesIO):

@@ -2,15 +2,15 @@ from pathlib import Path
 import threading
 
 import pytest
-import reelferry.services.converter as converter_module
+import violetrelay.services.converter as converter_module
 
-from reelferry.services.cache import CastCache
-from reelferry.services.converter import (
+from violetrelay.services.cache import CastCache
+from violetrelay.services.converter import (
     BACKEND_LABELS,
     EncoderBackend,
     MediaPreparer,
 )
-from reelferry.services.media import MediaInfo, MediaStream
+from violetrelay.services.media import MediaInfo, MediaStream
 
 
 class FakeLocator:
@@ -368,7 +368,7 @@ def test_hardware_probe_uses_dimensions_accepted_by_nvenc(tmp_path, monkeypatch)
         captured["command"] = command
         return Result()
 
-    monkeypatch.setattr("reelferry.services.converter.subprocess.run", fake_run)
+    monkeypatch.setattr("violetrelay.services.converter.subprocess.run", fake_run)
     assert instance._probe_hardware_backend(EncoderBackend.NVIDIA)
     assert "color=c=black:s=256x256:r=1" in captured["command"]
 

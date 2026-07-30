@@ -1,9 +1,9 @@
 import concurrent.futures
 
-from reelferry.controllers.airplay import AirPlayController
-from reelferry.models import QueueModel
-from reelferry.services.airplay import AirPlayDevice, CastStatus
-from reelferry.settings import SettingsStore
+from violetrelay.controllers.airplay import AirPlayController
+from violetrelay.models import QueueModel
+from violetrelay.services.airplay import AirPlayDevice, CastStatus
+from violetrelay.settings import SettingsStore
 
 
 class Player:

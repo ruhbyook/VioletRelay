@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from reelferry.services.secure_storage import SecureFileStorage
+from violetrelay.services.secure_storage import SecureFileStorage
 
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI test")
@@ -27,14 +27,14 @@ def test_plaintext_pairing_storage_is_migrated_without_data_loss(tmp_path):
     original, first, second, encrypted = asyncio.run(scenario())
     assert first == original
     assert second == original
-    assert encrypted.startswith("REELFERRY-DPAPI-1\n")
+    assert encrypted.startswith("VIOLETRELAY-DPAPI-1\n")
     assert '"devices"' not in encrypted
 
 
 def test_corrupt_encrypted_pairing_storage_is_quarantined_for_repair(tmp_path):
     async def scenario():
         path = tmp_path / "pyatv.json"
-        original = "REELFERRY-DPAPI-1\nnot-base64\n"
+        original = "VIOLETRELAY-DPAPI-1\nnot-base64\n"
         path.write_text(original, encoding="utf-8")
         storage = SecureFileStorage(str(path), asyncio.get_running_loop())
         await storage.load()
@@ -47,8 +47,13 @@ def test_corrupt_encrypted_pairing_storage_is_quarantined_for_repair(tmp_path):
     assert quarantined[0].read_text(encoding="utf-8") == original
 
 
+@pytest.mark.parametrize(
+    "legacy_header",
+    ("REELFERRY-DPAPI-1\n", "XMEDIAPLAYERX-DPAPI-1\n"),
+)
 def test_legacy_encrypted_pairing_storage_is_rebranded_without_data_loss(
     tmp_path,
+    legacy_header,
 ):
     async def scenario():
         path = tmp_path / "pyatv.json"
@@ -58,8 +63,8 @@ def test_legacy_encrypted_pairing_storage_is_rebranded_without_data_loss(
         initial = SecureFileStorage(str(path), asyncio.get_running_loop())
         await initial.load()
         legacy = path.read_text(encoding="utf-8").replace(
-            "REELFERRY-DPAPI-1\n",
-            "XMEDIAPLAYERX-DPAPI-1\n",
+            "VIOLETRELAY-DPAPI-1\n",
+            legacy_header,
             1,
         )
         path.write_text(legacy, encoding="utf-8")
@@ -70,5 +75,5 @@ def test_legacy_encrypted_pairing_storage_is_rebranded_without_data_loss(
 
     original, migrated, encrypted = asyncio.run(scenario())
     assert migrated == original
-    assert encrypted.startswith("REELFERRY-DPAPI-1\n")
-    assert "XMEDIAPLAYERX" not in encrypted
+    assert encrypted.startswith("VIOLETRELAY-DPAPI-1\n")
+    assert legacy_header not in encrypted

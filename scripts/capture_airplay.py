@@ -21,8 +21,8 @@ from pyatv.scripts.atvproxy import (
 from pyatv.protocols.airplay.utils import decode_plist_body, encode_plist_body
 from zeroconf import Zeroconf
 
-from reelferry.paths import AppPaths
-from reelferry.services.secure_storage import SecureFileStorage
+from violetrelay.paths import AppPaths
+from violetrelay.services.secure_storage import SecureFileStorage
 
 
 class CaptureRedactionFilter(logging.Filter):
@@ -195,7 +195,7 @@ async def run_proxy(remote_ip: str, local_ip: str) -> None:
         raise RuntimeError(f"Apple TV at {remote_ip} was not found")
     service = configs[0].get_service(Protocol.AirPlay)
     if service is None or not service.credentials:
-        raise RuntimeError("Pair AirPlay in ReelFerry before starting a capture")
+        raise RuntimeError("Pair AirPlay in Violet Relay before starting a capture")
 
     handler = RotatingFileHandler(log_path, maxBytes=8 * 1024 * 1024, backupCount=2, encoding="utf-8")
     handler.setFormatter(

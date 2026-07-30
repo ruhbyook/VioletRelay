@@ -71,5 +71,5 @@ if (-not $SkipFFmpeg) {
     }
 }
 
-Write-Host "ReelFerry development environment is ready." -ForegroundColor Green
-Write-Host "Run: .venv\Scripts\python.exe -m reelferry"
+Write-Host "Violet Relay development environment is ready." -ForegroundColor Green
+Write-Host "Run: .venv\Scripts\python.exe -m violetrelay"

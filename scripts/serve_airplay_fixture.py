@@ -12,7 +12,7 @@ from aiohttp import web
 HTML = """<!doctype html>
 <html lang="en">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ReelFerry AirPlay test</title>
+<title>Violet Relay AirPlay test</title>
 <style>
   body { margin: 0; background: #080b12; color: white; font: 18px -apple-system; }
   main { max-width: 900px; margin: 32px auto; padding: 20px; }

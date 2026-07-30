@@ -4,9 +4,9 @@ from types import SimpleNamespace
 import pyatv
 from pyatv.const import DeviceState, Protocol
 
-import reelferry.services.airplay as airplay_module
-from reelferry.services.airplay import AirPlayService
-from reelferry.services.airplay_modern import (
+import violetrelay.services.airplay as airplay_module
+from violetrelay.services.airplay import AirPlayService
+from violetrelay.services.airplay_modern import (
     SOURCE_VERSION,
     build_end_policy_command,
     build_insert_command,

@@ -1,4 +1,4 @@
-from reelferry.settings import SettingsStore
+from violetrelay.settings import SettingsStore
 
 
 def test_settings_merge_defaults_and_persist(tmp_path):

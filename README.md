@@ -1,16 +1,16 @@
-# ReelFerry
+# Violet Relay
 
 <p align="center">
-  <img src="assets/branding/reelferry-logo.png" width="112" alt="ReelFerry icon">
+  <img src="assets/branding/violetrelay-logo.png" width="112" alt="Violet Relay icon">
 </p>
 
 <p align="center"><strong>Play here. Watch there.</strong></p>
 
-[![Tests](https://github.com/ruhbyook/ReelFerry/actions/workflows/ci.yml/badge.svg)](https://github.com/ruhbyook/ReelFerry/actions/workflows/ci.yml)
+[![Tests](https://github.com/ruhbyook/VioletRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/ruhbyook/VioletRelay/actions/workflows/ci.yml)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-7C5CFF)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/ruhbyook/ReelFerry?include_prereleases)](https://github.com/ruhbyook/ReelFerry/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/ruhbyook/VioletRelay?include_prereleases)](https://github.com/ruhbyook/VioletRelay/releases/latest)
 
-ReelFerry is a cinematic Windows 11 media player that plays local audio and
+Violet Relay is a cinematic Windows 11 media player that plays local audio and
 video files and direct media URLs, maintains a session queue, remembers local
 playback positions, renders SRT subtitles, and casts media to Apple TV using
 AirPlay.
@@ -18,7 +18,7 @@ AirPlay.
 This is an unofficial beta. Its AirPlay support is built on the reverse-engineered
 `pyatv` project rather than an Apple-provided Windows SDK. It casts media playback;
 it does not mirror the Windows desktop and cannot play DRM-protected streaming
-services. ReelFerry is not affiliated with, endorsed by, or certified by Apple.
+services. Violet Relay is not affiliated with, endorsed by, or certified by Apple.
 
 ## Requirements
 
@@ -31,31 +31,33 @@ Python is not required for the portable release.
 ## Download
 
 Download the latest ZIP from
-[GitHub Releases](https://github.com/ruhbyook/ReelFerry/releases/latest),
-extract the complete folder, and run `ReelFerry.exe`.
+[GitHub Releases](https://github.com/ruhbyook/VioletRelay/releases/latest),
+extract the complete folder, and run `VioletRelay.exe`.
 
-The first public beta is unsigned, so Windows may show **Windows protected your
+This public beta is unsigned, so Windows may show **Windows protected your
 PC**. Verify the ZIP against the published `SHA256SUMS.txt`, then use **More
 info → Run anyway** only when it came from this repository.
 
 The public ZIP does not redistribute FFmpeg. When casting or conversion needs
-the optional media tools, ReelFerry explains the 105 MB upstream download
+the optional media tools, Violet Relay explains the 105 MB upstream download
 and starts it only after you choose **Install**. The archive and both
 executables are SHA-256 verified before use.
 
-## Upgrading from xMediaPlayerx
+## Upgrading from ReelFerry or xMediaPlayerx
 
-ReelFerry 0.5.0 is the renamed continuation of xMediaPlayerx. On first launch,
-it moves the existing `%LOCALAPPDATA%\xMediaPlayerx` data into
-`%LOCALAPPDATA%\ReelFerry` without duplicating large prepared-cast files. This
-preserves settings, playback positions, Apple TV pairing credentials, installed
-media tools, cached conversions, and logs.
+Violet Relay 0.6.0 is the renamed continuation of ReelFerry and xMediaPlayerx.
+On first launch, it moves data from `%LOCALAPPDATA%\ReelFerry` and then the older
+`%LOCALAPPDATA%\xMediaPlayerx` location into `%LOCALAPPDATA%\VioletRelay`
+without duplicating large prepared-cast files. This preserves settings, playback
+positions, Apple TV pairing credentials, installed media tools, cached
+conversions, and logs.
 
 Windows **Open with** and Default Apps registration is upgraded automatically.
-ReelFerry removes duplicate old-name entries but retains a small compatibility
-ProgID, so file types already assigned to `xMediaPlayerx.Video` continue opening
-in `ReelFerry.exe`. Choosing **Remove Windows file integration** removes both
-the new registration and that compatibility entry.
+Violet Relay removes duplicate old-name entries but retains a small compatibility
+ProgID, so file types already assigned to `ReelFerry.Media` or
+`xMediaPlayerx.Video` continue opening in `VioletRelay.exe`. Choosing **Remove
+Windows file integration** removes the new registration and both compatibility
+entries.
 
 ## Development setup
 
@@ -68,7 +70,7 @@ Install Python 3.13, open PowerShell in the repository, and run:
 
 The bootstrap creates `.venv`, installs the locked application dependencies, downloads the FFmpeg 8.1.2 release essentials ZIP from the Windows provider linked by ffmpeg.org, verifies its published SHA-256, and places `ffmpeg.exe` and `ffprobe.exe` under `vendor/ffmpeg/bin`.
 
-If Windows Firewall prompts when casting a local file, allow ReelFerry/Python on private networks. Apple TV must be able to reach the temporary HTTP server created on the PC.
+If Windows Firewall prompts when casting a local file, allow Violet Relay/Python on private networks. Apple TV must be able to reach the temporary HTTP server created on the PC.
 
 ## Usage
 
@@ -143,11 +145,11 @@ If Windows Firewall prompts when casting a local file, allow ReelFerry/Python on
 - If Qt cannot play a local codec, the app offers a cancellable local
   compatibility conversion and resumes from the previous position.
 - The portable Windows build registers itself per-user as an available handler
-  on first launch, so supported movie files offer ReelFerry under **Open
+  on first launch, so supported movie files offer Violet Relay under **Open
   with** without changing any existing defaults. Registration is automatically
   repaired if the portable folder moves.
-- Open **Settings and About** and choose **Make ReelFerry a default player**
-  to open ReelFerry's Windows Default Apps page. Windows keeps control of
+- Open **Settings and About** and choose **Make Violet Relay a default player**
+  to open Violet Relay's Windows Default Apps page. Windows keeps control of
   the actual choice and requires your confirmation.
 - **Remove Windows file integration** removes the portable app's Open with and
   Default Apps registry entries before deleting or moving the application.
@@ -162,7 +164,7 @@ If Windows Firewall prompts when casting a local file, allow ReelFerry/Python on
   cache cleanup, and the diagnostic log folder.
 
 Pairing data, settings, playback history, cache files, and redacted logs live
-below `%LOCALAPPDATA%\ReelFerry` (the exact cache/config split follows
+below `%LOCALAPPDATA%\VioletRelay` (the exact cache/config split follows
 Windows platform conventions). Playback history is local to the Windows user
 and is never sent over the network. Pairing credentials are encrypted with
 Windows DPAPI for the current user; moving that file to another Windows account
@@ -184,7 +186,7 @@ servers, hardware encoders, and worker threads before returning control.
 .\scripts\build.ps1
 ```
 
-The portable build is produced at `dist\ReelFerry\ReelFerry.exe`. It is
+The portable build is produced at `dist\VioletRelay\VioletRelay.exe`. It is
 currently unsigned and intended for local use and beta testing. See
 [`RELEASING.md`](RELEASING.md) for the guarded release archive process.
 The fixture script creates short direct, remux, transcode, HDR, embedded/external
@@ -216,7 +218,7 @@ Automated tests mock the protocol boundary. Before treating a build as verified,
 ## tvOS 26 compatibility note
 
 `pyatv`'s legacy `/play` URL path has a confirmed regression on Apple TV 4K devices
-running tvOS 26.x. ReelFerry uses the current AirPlay 2 PTP session and
+running tvOS 26.x. Violet Relay uses the current AirPlay 2 PTP session and
 `insertPlayQueueItem` command used by Apple senders instead. This path was verified
 on a physical Apple TV 4K running tvOS 26.5 with direct URLs and PC-hosted local
 files. VLC for Apple TV remains an automatic emergency fallback if modern session
@@ -224,7 +226,7 @@ setup fails. Earlier tvOS releases continue to use `pyatv`'s direct AirPlay path
 
 ## Support development
 
-Every feature is free and remains available without payment. If ReelFerry
+Every feature is free and remains available without payment. If Violet Relay
 is useful to you, optional crypto tips can support hardware testing and future
 development:
 
@@ -241,12 +243,12 @@ and are not represented as tax-deductible charitable donations.
 
 ## License
 
-ReelFerry is free software licensed under GPL-3.0-or-later. All functionality
+Violet Relay is free software licensed under GPL-3.0-or-later. All functionality
 is available without payment. Tips do not change the license.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [FFMPEG_SOURCE.md](FFMPEG_SOURCE.md) before redistributing a build. Public
-ReelFerry packages intentionally acquire FFmpeg directly from its provider
+Violet Relay packages intentionally acquire FFmpeg directly from its provider
 after user consent rather than redistributing that static binary. Developer or
 private builds that bundle it remain subject to its GPLv3 corresponding-source
 requirements.
@@ -255,7 +257,7 @@ See also [Privacy](PRIVACY.md), [Security](SECURITY.md),
 [Code signing policy](CODE_SIGNING_POLICY.md),
 [Contributing](CONTRIBUTING.md), and [Changelog](CHANGELOG.md).
 
-AirPlay and Apple TV are trademarks of Apple Inc. ReelFerry uses these names
+AirPlay and Apple TV are trademarks of Apple Inc. Violet Relay uses these names
 only to describe compatibility.
 
-Copyright © 2026 ReelFerry contributors.
+Copyright © 2026 Violet Relay contributors.

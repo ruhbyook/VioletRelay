@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 - 2026-07-30
+
+- Renamed the application, package, executable, portable folder, release
+  artifacts, Windows registration, documentation, and AirPlay client identity
+  to **Violet Relay**.
+- Added a new play-and-transfer logo with a legible small-size silhouette and
+  regenerated the Windows icon, in-app artwork, repository logo, and social
+  preview.
+- Added non-destructive data migration from both ReelFerry and xMediaPlayerx,
+  including settings, resume positions, encrypted pairing credentials, media
+  tools, logs, and prepared casts.
+- Preserved existing Windows defaults through compatibility ProgIDs for both
+  previous names while removing their duplicate Open with entries.
+- Retained compatibility with ReelFerry development environment variables so
+  existing automation and isolated smoke tests continue working.
+
 ## 0.5.3 - 2026-07-30
 
 - Replaced font-based toolbar and transport glyphs with normalized vector

@@ -6,7 +6,7 @@ from aiohttp import ClientSession
 from pyatv import exceptions
 from pyatv.const import DeviceState, Protocol
 
-from reelferry.services.airplay import AirPlayService
+from violetrelay.services.airplay import AirPlayService
 
 
 class FakeModel:

@@ -6,11 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve ReelFerry. Do not attach copyrighted media, pairing files, raw network captures, or unreviewed diagnostic logs.
+        Thanks for helping improve Violet Relay. Do not attach copyrighted media, pairing files, raw network captures, or unreviewed diagnostic logs.
   - type: input
     id: version
     attributes:
-      label: ReelFerry version
+      label: Violet Relay version
       placeholder: "0.5.3"
     validations:
       required: true

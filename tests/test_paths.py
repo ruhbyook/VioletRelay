@@ -1,9 +1,15 @@
-from reelferry.paths import AppPaths, migrate_legacy_app_data
+import pytest
+
+from violetrelay.paths import AppPaths, migrate_legacy_app_data
 
 
-def test_legacy_app_data_migration_preserves_user_state_and_cache(tmp_path):
-    legacy = tmp_path / "xMediaPlayerx"
-    current = tmp_path / "ReelFerry"
+@pytest.mark.parametrize("legacy_name", ("ReelFerry", "xMediaPlayerx"))
+def test_legacy_app_data_migration_preserves_user_state_and_cache(
+    tmp_path,
+    legacy_name,
+):
+    legacy = tmp_path / legacy_name
+    current = tmp_path / "VioletRelay"
     (legacy / "Cache" / "casts").mkdir(parents=True)
     (legacy / "Logs").mkdir()
     (legacy / "settings.json").write_text('{"volume": 0.4}', encoding="utf-8")
@@ -34,9 +40,13 @@ def test_legacy_app_data_migration_preserves_user_state_and_cache(tmp_path):
     )
 
 
-def test_legacy_migration_never_overwrites_newer_brand_data(tmp_path):
-    legacy = tmp_path / "xMediaPlayerx"
-    current = tmp_path / "ReelFerry"
+@pytest.mark.parametrize("legacy_name", ("ReelFerry", "xMediaPlayerx"))
+def test_legacy_migration_never_overwrites_newer_brand_data(
+    tmp_path,
+    legacy_name,
+):
+    legacy = tmp_path / legacy_name
+    current = tmp_path / "VioletRelay"
     legacy.mkdir()
     current.mkdir()
     (legacy / "settings.json").write_text("legacy", encoding="utf-8")
@@ -62,7 +72,7 @@ def test_explicit_data_directory_is_isolated_and_skips_migration(
     monkeypatch,
 ):
     target = tmp_path / "isolated"
-    monkeypatch.setenv("REELFERRY_DATA_DIR", str(target))
+    monkeypatch.setenv("VIOLETRELAY_DATA_DIR", str(target))
 
     paths = AppPaths.default()
 

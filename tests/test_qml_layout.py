@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 QML = (
-    Path(__file__).parents[1] / "src" / "reelferry" / "qml" / "Main.qml"
+    Path(__file__).parents[1] / "src" / "violetrelay" / "qml" / "Main.qml"
 ).read_text(encoding="utf-8")
 
 

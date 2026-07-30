@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from reelferry.support import (
+from violetrelay.support import (
     BITCOIN_ADDRESS,
     BITCOIN_URI,
     ETHEREUM_ADDRESS,
@@ -12,7 +12,7 @@ from reelferry.support import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ROOT / "src" / "reelferry" / "qml" / "assets"
+ASSETS = ROOT / "src" / "violetrelay" / "qml" / "assets"
 
 
 def test_public_support_addresses_and_networks_are_unambiguous():

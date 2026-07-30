@@ -2,17 +2,23 @@ from pathlib import Path
 
 import pytest
 
-from reelferry.controllers.windows_integration import WindowsIntegrationController
-from reelferry.services.windows_integration import (
+from violetrelay.controllers.windows_integration import WindowsIntegrationController
+from violetrelay.services.windows_integration import (
     APPLICATION_PATH,
     CAPABILITIES_PATH,
     LEGACY_APPLICATION_PATH,
     LEGACY_CAPABILITIES_PATH,
     LEGACY_PROG_ID,
     LEGACY_PROG_ID_PATH,
+    LEGACY_REGISTRATIONS,
     LEGACY_REGISTERED_NAME,
     PROG_ID,
     PROG_ID_PATH,
+    REELFERRY_APPLICATION_PATH,
+    REELFERRY_CAPABILITIES_PATH,
+    REELFERRY_PROG_ID,
+    REELFERRY_PROG_ID_PATH,
+    REELFERRY_REGISTERED_NAME,
     REGISTERED_APPS_PATH,
     REGISTERED_NAME,
     VIDEO_EXTENSIONS,
@@ -57,7 +63,7 @@ def test_registers_complete_per_user_capabilities(tmp_path):
     registry = MemoryRegistry()
     opened: list[str] = []
     notified: list[bool] = []
-    executable = tmp_path / "ReelFerry.exe"
+    executable = tmp_path / "VioletRelay.exe"
     integration = service(executable, registry, opened, notified)
 
     assert not integration.state().registered
@@ -89,7 +95,7 @@ def test_open_with_registration_does_not_claim_default_capabilities(tmp_path):
     registry = MemoryRegistry()
     notified: list[bool] = []
     integration = service(
-        tmp_path / "ReelFerry.exe",
+        tmp_path / "VioletRelay.exe",
         registry,
         notified=notified,
     )
@@ -109,9 +115,9 @@ def test_open_with_registration_does_not_claim_default_capabilities(tmp_path):
 
 def test_moved_portable_folder_is_detected_and_repaired(tmp_path):
     registry = MemoryRegistry()
-    first = service(tmp_path / "old" / "ReelFerry.exe", registry)
+    first = service(tmp_path / "old" / "VioletRelay.exe", registry)
     first.register()
-    moved = service(tmp_path / "new" / "ReelFerry.exe", registry)
+    moved = service(tmp_path / "new" / "VioletRelay.exe", registry)
     assert moved.state().needs_repair
     assert not moved.register().needs_repair
     assert str((tmp_path / "new").resolve()) in registry.get_value(
@@ -121,9 +127,9 @@ def test_moved_portable_folder_is_detected_and_repaired(tmp_path):
 
 def test_moved_open_with_registration_is_detected_and_repaired(tmp_path):
     registry = MemoryRegistry()
-    first = service(tmp_path / "old" / "ReelFerry.exe", registry)
+    first = service(tmp_path / "old" / "VioletRelay.exe", registry)
     first.register_open_with()
-    moved = service(tmp_path / "new" / "ReelFerry.exe", registry)
+    moved = service(tmp_path / "new" / "VioletRelay.exe", registry)
 
     assert moved.state().needs_repair
     state = moved.register_open_with()
@@ -135,32 +141,56 @@ def test_moved_open_with_registration_is_detected_and_repaired(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    ("registered_name", "capabilities_path", "prog_id", "prog_id_path", "application_path"),
+    (
+        (
+            REELFERRY_REGISTERED_NAME,
+            REELFERRY_CAPABILITIES_PATH,
+            REELFERRY_PROG_ID,
+            REELFERRY_PROG_ID_PATH,
+            REELFERRY_APPLICATION_PATH,
+        ),
+        (
+            LEGACY_REGISTERED_NAME,
+            LEGACY_CAPABILITIES_PATH,
+            LEGACY_PROG_ID,
+            LEGACY_PROG_ID_PATH,
+            LEGACY_APPLICATION_PATH,
+        ),
+    ),
+)
 def test_legacy_registration_is_migrated_without_breaking_old_defaults(
     tmp_path,
+    registered_name,
+    capabilities_path,
+    prog_id,
+    prog_id_path,
+    application_path,
 ):
     registry = MemoryRegistry()
-    executable = tmp_path / "ReelFerry.exe"
+    executable = tmp_path / "VioletRelay.exe"
     integration = service(executable, registry)
     legacy_command = '"C:\\old\\xMediaPlayerx.exe" "%1"'
     registry.set_value(
         REGISTERED_APPS_PATH,
-        LEGACY_REGISTERED_NAME,
-        LEGACY_CAPABILITIES_PATH,
+        registered_name,
+        capabilities_path,
     )
     registry.set_value(
-        LEGACY_PROG_ID_PATH + r"\shell\open\command",
+        prog_id_path + r"\shell\open\command",
         "",
         legacy_command,
     )
     registry.set_value(
-        LEGACY_APPLICATION_PATH + r"\shell\open\command",
+        application_path + r"\shell\open\command",
         "",
         legacy_command,
     )
     for extension in VIDEO_EXTENSIONS:
         registry.set_value(
             integration._open_with_progids_path(extension),
-            LEGACY_PROG_ID,
+            prog_id,
             "",
         )
 
@@ -175,26 +205,26 @@ def test_legacy_registration_is_migrated_without_breaking_old_defaults(
     assert not after.needs_repair
     assert registry.get_value(
         REGISTERED_APPS_PATH,
-        LEGACY_REGISTERED_NAME,
+        registered_name,
     ) is None
-    assert registry.get_value(LEGACY_APPLICATION_PATH) is None
+    assert registry.get_value(application_path) is None
     assert registry.get_value(
-        LEGACY_PROG_ID_PATH + r"\shell\open\command"
+        prog_id_path + r"\shell\open\command"
     ) == f'"{executable.resolve()}" "%1"'
     for extension in VIDEO_EXTENSIONS:
         assert registry.get_value(
             integration._open_with_progids_path(extension),
-            LEGACY_PROG_ID,
+            prog_id,
         ) is None
 
 
 def test_opens_app_specific_default_settings_and_unregisters(tmp_path):
     registry = MemoryRegistry()
     opened: list[str] = []
-    integration = service(tmp_path / "ReelFerry.exe", registry, opened)
+    integration = service(tmp_path / "VioletRelay.exe", registry, opened)
     integration.register()
     uri = integration.open_default_apps()
-    assert uri == "ms-settings:defaultapps?registeredAppUser=ReelFerry"
+    assert uri == "ms-settings:defaultapps?registeredAppUser=Violet%20Relay"
     assert opened == [uri]
     integration.unregister()
     assert not integration.state().registered
@@ -204,7 +234,7 @@ def test_opens_app_specific_default_settings_and_unregisters(tmp_path):
 def test_controller_registers_before_opening_settings(qtbot, tmp_path):
     registry = MemoryRegistry()
     opened: list[str] = []
-    integration = service(tmp_path / "ReelFerry.exe", registry, opened)
+    integration = service(tmp_path / "VioletRelay.exe", registry, opened)
     controller = WindowsIntegrationController(integration)
     with qtbot.waitSignal(controller.changed):
         controller.registerAndChooseDefaults()
@@ -216,7 +246,7 @@ def test_controller_registers_before_opening_settings(qtbot, tmp_path):
 def test_controller_automatically_registers_only_for_open_with(qtbot, tmp_path):
     registry = MemoryRegistry()
     opened: list[str] = []
-    integration = service(tmp_path / "ReelFerry.exe", registry, opened)
+    integration = service(tmp_path / "VioletRelay.exe", registry, opened)
     controller = WindowsIntegrationController(integration)
 
     with qtbot.waitSignal(controller.changed):
@@ -232,9 +262,9 @@ def test_controller_auto_repairs_full_registration_after_portable_move(
     qtbot, tmp_path
 ):
     registry = MemoryRegistry()
-    first = service(tmp_path / "old" / "ReelFerry.exe", registry)
+    first = service(tmp_path / "old" / "VioletRelay.exe", registry)
     first.register()
-    moved = service(tmp_path / "new" / "ReelFerry.exe", registry)
+    moved = service(tmp_path / "new" / "VioletRelay.exe", registry)
     controller = WindowsIntegrationController(moved)
     assert controller.needsRepair
 
@@ -251,7 +281,7 @@ def test_controller_auto_repairs_full_registration_after_portable_move(
 
 def test_controller_explicit_open_with_registration(qtbot, tmp_path):
     registry = MemoryRegistry()
-    integration = service(tmp_path / "ReelFerry.exe", registry)
+    integration = service(tmp_path / "VioletRelay.exe", registry)
     controller = WindowsIntegrationController(integration)
 
     with qtbot.waitSignal(controller.changed):
@@ -263,7 +293,7 @@ def test_controller_explicit_open_with_registration(qtbot, tmp_path):
 
 def test_controller_can_remove_open_with_registration(qtbot, tmp_path):
     registry = MemoryRegistry()
-    integration = service(tmp_path / "ReelFerry.exe", registry)
+    integration = service(tmp_path / "VioletRelay.exe", registry)
     controller = WindowsIntegrationController(integration)
     controller.registerForOpenWith()
 
@@ -303,9 +333,13 @@ def test_unregister_attempts_every_cleanup_after_one_failure(tmp_path):
     registry = BrokenRegistry()
     notified = []
     integration = service(
-        tmp_path / "ReelFerry.exe", registry, notified=notified
+        tmp_path / "VioletRelay.exe", registry, notified=notified
     )
     with pytest.raises(RuntimeError, match="completely removed"):
         integration.unregister()
-    assert len(registry.deleted) == 8 + (2 * len(VIDEO_EXTENSIONS))
+    assert len(registry.deleted) == (
+        4
+        + (4 * len(LEGACY_REGISTRATIONS))
+        + ((1 + len(LEGACY_REGISTRATIONS)) * len(VIDEO_EXTENSIONS))
+    )
     assert notified == [True]

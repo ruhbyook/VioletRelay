@@ -1,4 +1,4 @@
-from reelferry.services.subtitles import SubtitleTrack
+from violetrelay.services.subtitles import SubtitleTrack
 
 
 def test_srt_parser_and_lookup(tmp_path):

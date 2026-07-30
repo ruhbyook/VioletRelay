@@ -2,15 +2,15 @@
 
 ## Public downloads
 
-The public ReelFerry ZIP does **not** contain FFmpeg executables. On first
-launch, ReelFerry explains why the optional media tools are needed and only
+The public Violet Relay ZIP does **not** contain FFmpeg executables. On first
+launch, Violet Relay explains why the optional media tools are needed and only
 downloads them after the user chooses **Install**. The archive is fetched
 directly from the Windows build provider linked by ffmpeg.org, not from a
-ReelFerry server. The archive and both extracted executables are verified
+Violet Relay server. The archive and both extracted executables are verified
 against the SHA-256 values below before use.
 
 This keeps the application download small, makes the upstream origin explicit,
-and means ReelFerry is not redistributing that third-party static binary.
+and means Violet Relay is not redistributing that third-party static binary.
 
 ## Developer and private bundled builds
 
@@ -40,5 +40,5 @@ different FFmpeg release or only the main FFmpeg tarball is not sufficient.
 
 Anyone who chooses to redistribute a bundled build must verify that the
 provider's complete corresponding source remains available and mirror the exact
-source next to the ReelFerry download. A public build created with
+source next to the Violet Relay download. A public build created with
 `scripts/release.ps1 -Public` deliberately refuses to include these executables.

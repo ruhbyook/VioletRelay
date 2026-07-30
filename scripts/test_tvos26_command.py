@@ -25,8 +25,8 @@ from pyatv.protocols.raop.protocols.airplayv2 import (
 from pyatv.support.http import http_connect
 from pyatv.support.rtsp import RtspSession
 
-from reelferry.paths import AppPaths
-from reelferry.services.secure_storage import SecureFileStorage
+from violetrelay.paths import AppPaths
+from violetrelay.services.secure_storage import SecureFileStorage
 
 
 async def send_command(rtsp: RtspSession, payload: dict) -> int:
@@ -71,7 +71,7 @@ async def run(remote_ip: str, media_url: str, position: float) -> None:
         protocol._verifier = await verify_connection(context.credentials, connection)
         setup_response = await rtsp.setup(
             body={
-                "name": "ReelFerry",
+                "name": "Violet Relay",
                 "updateSessionRequest": False,
                 "statsCollectionEnabled": False,
                 "sessionUUID": session_uuid,
@@ -202,8 +202,8 @@ async def run(remote_ip: str, media_url: str, position: float) -> None:
                     "allowedCommonMediaClientDataKeys": 0,
                     "audioMode": "default",
                     "referenceRestrictions": 3,
-                    "clientBundleID": "app.reelferry.player",
-                    "clientProcName": "ReelFerry",
+                    "clientBundleID": "app.violetrelay.player",
+                    "clientProcName": "Violet Relay",
                     "Content-Location": media_url,
                     "snapTimeToPausePlayback": False,
                     "Start-Position": {

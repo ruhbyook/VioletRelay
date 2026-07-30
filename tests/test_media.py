@@ -3,11 +3,11 @@ import threading
 
 import pytest
 
-from reelferry.services.converter import (
+from violetrelay.services.converter import (
     conversion_progress,
     streaming_buffer_progress,
 )
-from reelferry.services.media import (
+from violetrelay.services.media import (
     MediaInfo,
     MediaStream,
     PreparationKind,

@@ -23,11 +23,11 @@ $PyInstallerArguments = @(
     "--windowed",
     "--onedir",
     "--distpath", $DistRoot,
-    "--name", "ReelFerry",
-    "--icon", "assets\reelferry.ico",
-    "--version-file", "assets\reelferry-version-info.txt",
+    "--name", "VioletRelay",
+    "--icon", "assets\violetrelay.ico",
+    "--version-file", "assets\violetrelay-version-info.txt",
     "--collect-submodules", "pyatv",
-    "--add-data", "src\reelferry\qml;qml"
+    "--add-data", "src\violetrelay\qml;qml"
 )
 if (-not $WithoutBundledFFmpeg) {
     $PyInstallerArguments += @(
@@ -35,13 +35,13 @@ if (-not $WithoutBundledFFmpeg) {
         "--add-binary", "vendor\ffmpeg\bin\ffprobe.exe;vendor\ffmpeg\bin"
     )
 }
-$PyInstallerArguments += "src\reelferry\app.py"
+$PyInstallerArguments += "src\violetrelay\app.py"
 
 & $Python -m PyInstaller @PyInstallerArguments
 
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
 
-$Dist = Join-Path $DistRoot "ReelFerry"
+$Dist = Join-Path $DistRoot "VioletRelay"
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, FFMPEG_SOURCE.md -Destination $Dist -Force
 New-Item -ItemType Directory -Force "$Dist\licenses\FFmpeg" | Out-Null
 New-Item -ItemType Directory -Force "$Dist\licenses\Python" | Out-Null
@@ -55,4 +55,4 @@ Copy-Item "$LicenseDir\*" -Destination "$Dist\licenses\Python" -Recurse -Force
     -BundledFFmpeg:(-not $WithoutBundledFFmpeg)
 if ($LASTEXITCODE -ne 0) { throw "Portable package verification failed." }
 
-Write-Host "Portable build created at $Dist\ReelFerry.exe" -ForegroundColor Green
+Write-Host "Portable build created at $Dist\VioletRelay.exe" -ForegroundColor Green

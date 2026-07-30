@@ -21,7 +21,7 @@ Before opening a pull request:
 
 ```powershell
 .\scripts\test.ps1
-$env:REELFERRY_SMOKE_TEST = "1"
+$env:VIOLETRELAY_SMOKE_TEST = "1"
 .\scripts\run.ps1
 ```
 

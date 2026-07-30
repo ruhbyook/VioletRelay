@@ -7,10 +7,10 @@ import time
 
 import pytest
 
-from reelferry.app import _close_startup_components, _shutdown_components
-from reelferry.services.converter import ConversionCancelled, MediaPreparer
-from reelferry.services.media import FFmpegLocator, MediaProbe, validate_media_url
-from reelferry.settings import SettingsStore
+from violetrelay.app import _close_startup_components, _shutdown_components
+from violetrelay.services.converter import ConversionCancelled, MediaPreparer
+from violetrelay.services.media import FFmpegLocator, MediaProbe, validate_media_url
+from violetrelay.settings import SettingsStore
 
 
 def test_settings_reject_invalid_root_types_and_clamp_values(tmp_path):
@@ -53,7 +53,7 @@ def test_media_probe_wraps_timeout_and_invalid_json(monkeypatch):
     def timeout(*_args, **_kwargs):
         raise subprocess.TimeoutExpired("ffprobe", 2)
 
-    monkeypatch.setattr("reelferry.services.media.subprocess.run", timeout)
+    monkeypatch.setattr("violetrelay.services.media.subprocess.run", timeout)
     with pytest.raises(TimeoutError, match="timed out"):
         probe.probe("movie.mkv", timeout=2)
 
@@ -63,7 +63,7 @@ def test_media_probe_wraps_timeout_and_invalid_json(monkeypatch):
         stderr = ""
 
     monkeypatch.setattr(
-        "reelferry.services.media.subprocess.run", lambda *_a, **_k: Result()
+        "violetrelay.services.media.subprocess.run", lambda *_a, **_k: Result()
     )
     with pytest.raises(RuntimeError, match="invalid media information"):
         probe.probe("movie.mkv")

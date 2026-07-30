@@ -35,7 +35,7 @@ def collect(output: Path) -> list[dict[str, object]]:
         key=lambda item: (item.metadata.get("Name", "").lower(), item.version),
     ):
         name = distribution.metadata.get("Name") or "unknown"
-        if name.lower().replace("-", "") == "reelferry":
+        if name.lower().replace("-", "") == "violetrelay":
             # The project's GPL text is copied to the release root separately.
             continue
         package_dir = output / f"{safe_name(name)}-{safe_name(distribution.version)}"

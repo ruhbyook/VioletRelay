@@ -3,10 +3,10 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-import reelferry.services.converter as converter_module
-from reelferry.services.cache import CastCache
-from reelferry.services.converter import EncoderBackend, MediaPreparer
-from reelferry.services.media import (
+import violetrelay.services.converter as converter_module
+from violetrelay.services.cache import CastCache
+from violetrelay.services.converter import EncoderBackend, MediaPreparer
+from violetrelay.services.media import (
     MediaInfo,
     MediaStream,
     PreparationKind,

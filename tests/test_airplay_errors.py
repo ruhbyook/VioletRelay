@@ -6,7 +6,7 @@ import pyatv
 import pytest
 from pyatv.const import DeviceState, FeatureName, FeatureState, Protocol
 
-from reelferry.services.airplay import (
+from violetrelay.services.airplay import (
     AirPlayService,
     AsyncRuntime,
     UnavailableAsyncRuntime,

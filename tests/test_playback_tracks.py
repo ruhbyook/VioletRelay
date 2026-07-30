@@ -2,17 +2,17 @@ import threading
 
 import pytest
 
-import reelferry.controllers.playback as playback_module
-from reelferry.controllers.playback import PlaybackController
-from reelferry.models import QueueModel
-from reelferry.services.converter import PreparedMedia
-from reelferry.services.media import (
+import violetrelay.controllers.playback as playback_module
+from violetrelay.controllers.playback import PlaybackController
+from violetrelay.models import QueueModel
+from violetrelay.services.converter import PreparedMedia
+from violetrelay.services.media import (
     MediaInfo,
     MediaStream,
     RemoteMediaIdentity,
 )
-from reelferry.services.media import PreparationKind
-from reelferry.settings import SettingsStore
+from violetrelay.services.media import PreparationKind
+from violetrelay.settings import SettingsStore
 
 
 class FakePreparer:

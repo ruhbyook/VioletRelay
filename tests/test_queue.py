@@ -1,4 +1,4 @@
-from reelferry.models import QueueModel
+from violetrelay.models import QueueModel
 from PySide6.QtCore import QUrl
 
 
