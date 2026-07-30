@@ -14,13 +14,13 @@ def test_package_metadata_and_runtime_version_match_reelferry_brand():
         project = tomllib.load(stream)["project"]
 
     assert project["name"] == "reelferry"
-    assert project["version"] == __version__ == "0.5.2"
+    assert project["version"] == __version__ == "0.5.3"
     assert project["scripts"] == {"reelferry": "reelferry.app:main"}
     version_info = (
         ROOT / "assets" / "reelferry-version-info.txt"
     ).read_text(encoding="utf-8")
     assert "StringStruct('ProductName', 'ReelFerry')" in version_info
-    assert "StringStruct('ProductVersion', '0.5.2.0')" in version_info
+    assert "StringStruct('ProductVersion', '0.5.3.0')" in version_info
 
 
 def test_runtime_qml_uses_only_the_current_visible_brand():
@@ -35,15 +35,35 @@ def test_runtime_qml_uses_only_the_current_visible_brand():
     assert "reelferry-icon.png" in qml
 
 
-def test_icon_buttons_center_glyphs_in_the_full_control_bounds():
+def test_icon_buttons_use_normalized_vector_geometry():
     qml = (ROOT / "src" / "reelferry" / "qml" / "Main.qml").read_text(
         encoding="utf-8"
     )
+    vector_icon = (
+        ROOT / "src" / "reelferry" / "qml" / "VectorIcon.qml"
+    ).read_text(encoding="utf-8")
 
-    assert qml.count("padding: 0") >= 2
-    assert 'text: "\\uE8A9"' in qml
-    assert 'text: "\\uEB51"' in qml
-    assert 'text: "\\uE946"' in qml
+    assert qml.count("padding: 0") >= 3
+    for icon_name in (
+        "plus",
+        "link",
+        "cast",
+        "captions",
+        "grid",
+        "heart",
+        "info",
+        "previous",
+        "play",
+        "pause",
+        "next",
+        "volume",
+        "muted",
+        "fullscreen",
+        "exit-fullscreen",
+    ):
+        assert f'case "{icon_name}":' in vector_icon
+    assert "context.scale(width / 20, height / 20)" in vector_icon
+    assert "Segoe Fluent Icons" not in qml
 
 
 def test_reelferry_icon_assets_are_valid_and_multiresolution():

@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: ReelFerry version
-      placeholder: "0.5.2"
+      placeholder: "0.5.3"
     validations:
       required: true
   - type: input

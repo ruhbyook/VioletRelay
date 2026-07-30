@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3 - 2026-07-30
+
+- Replaced font-based toolbar and transport glyphs with normalized vector
+  geometry so the visible icon strokes, rather than invisible font metrics,
+  are centered inside each control.
+- Centered Open, URL, and AirPlay icon-label groups as a unit and snapped their
+  vertical placement to whole device-independent pixels.
+- Added a vector captions icon and accessible names for icon-only controls.
+- Verified active-player renders at 100%, 125%, 150%, and 200% Windows scaling.
+
 ## 0.5.2 - 2026-07-30
 
 - Centered toolbar and transport glyphs against the complete circular button

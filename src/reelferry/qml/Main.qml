@@ -81,18 +81,43 @@ ApplicationWindow {
 
     component GlowButton: Button {
         id: control
+        property string iconName: ""
+        property real iconSize: 16
         implicitHeight: 40
         implicitWidth: Math.max(42, contentItem.implicitWidth + 24)
+        padding: 0
         font.family: "Segoe UI Variable"
         font.pixelSize: 14
         font.weight: Font.DemiBold
-        contentItem: Text {
-            text: control.text
-            font: control.font
-            color: control.enabled ? root.textPrimary : "#586173"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+        contentItem: Item {
+            implicitWidth: buttonContent.implicitWidth
+            implicitHeight: Math.max(control.iconSize, buttonLabel.implicitHeight)
+
+            Row {
+                id: buttonContent
+                anchors.horizontalCenter: parent.horizontalCenter
+                height: parent.height
+                spacing: control.iconName.length > 0 ? 7 : 0
+
+                VectorIcon {
+                    width: control.iconSize
+                    height: control.iconSize
+                    y: Math.round((buttonContent.height - height) / 2)
+                    name: control.iconName
+                    color: control.enabled ? root.textPrimary : "#586173"
+                    visible: control.iconName.length > 0
+                }
+                Text {
+                    id: buttonLabel
+                    y: Math.round((buttonContent.height - height) / 2)
+                    text: control.text
+                    font: control.font
+                    color: control.enabled ? root.textPrimary : "#586173"
+                }
+            }
         }
+        Accessible.name: control.text
+        Accessible.role: Accessible.Button
         background: Rectangle {
             radius: 12
             color: control.down ? "#4A3BA5" : control.hovered ? "#30294E" : "#1A2030"
@@ -104,6 +129,8 @@ ApplicationWindow {
 
     component RoundButtonX: Button {
         id: round
+        property string iconName: ""
+        property real iconSize: 18
         implicitWidth: 40
         implicitHeight: 40
         padding: 0
@@ -111,13 +138,24 @@ ApplicationWindow {
         font.pixelSize: 14
         font.weight: Font.DemiBold
         contentItem: Item {
+            VectorIcon {
+                anchors.centerIn: parent
+                width: round.iconSize
+                height: round.iconSize
+                name: round.iconName
+                color: round.enabled ? root.textPrimary : "#566071"
+                visible: round.iconName.length > 0
+            }
             Text {
                 anchors.centerIn: parent
                 text: round.text
                 font: round.font
                 color: round.enabled ? root.textPrimary : "#566071"
+                visible: round.iconName.length === 0
             }
         }
+        Accessible.name: ToolTip.text.length > 0 ? ToolTip.text : round.text
+        Accessible.role: Accessible.Button
         background: Rectangle {
             radius: width / 2
             color: round.down ? "#4A3BA5" : round.hovered ? "#29243E" : "#151B28"
@@ -133,23 +171,25 @@ ApplicationWindow {
 
     component TransportButton: Button {
         id: transport
-        property string glyph: ""
+        property string iconName: ""
         property bool primary: false
         implicitWidth: primary ? 48 : 40
         implicitHeight: primary ? 48 : 40
         padding: 0
-        font.family: "Segoe Fluent Icons"
-        font.pixelSize: primary ? 20 : 16
         contentItem: Item {
-            Text {
+            VectorIcon {
                 anchors.centerIn: parent
-                text: transport.glyph
-                font: transport.font
+                width: transport.primary ? 20 : 16
+                height: width
+                name: transport.iconName
+                strokeWidth: transport.primary ? 1.7 : 1.8
                 color: transport.enabled
                        ? (transport.primary ? "white" : root.textPrimary)
                        : "#566071"
             }
         }
+        Accessible.name: ToolTip.text
+        Accessible.role: Accessible.Button
         background: Rectangle {
             radius: width / 2
             color: transport.primary
@@ -211,35 +251,35 @@ ApplicationWindow {
                 Text { text: airplay.casting ? "Casting to " + airplay.castDeviceName : "Play here. Watch there."; color: airplay.casting ? root.cyan : root.textSecondary; font.pixelSize: 11 }
             }
             Item { Layout.fillWidth: true }
-            GlowButton { text: "+  Open"; onClicked: fileDialog.open() }
             GlowButton {
-                text: playback.urlOpening ? "Checking URL…" : "⌁  URL"
+                iconName: "plus"
+                text: "Open"
+                onClicked: fileDialog.open()
+            }
+            GlowButton {
+                iconName: "link"
+                text: playback.urlOpening ? "Checking URL…" : "URL"
                 enabled: !playback.urlOpening
                 onClicked: urlDialog.open()
             }
             GlowButton {
-                text: airplay.scanning ? "Scanning…" : airplay.casting ? "◉  " + airplay.castDeviceName : "◉  AirPlay"
+                iconName: "cast"
+                text: airplay.scanning ? "Scanning…" : airplay.casting ? airplay.castDeviceName : "AirPlay"
                 enabled: !playback.fallbackPreparing
                 onClicked: castPanel.open()
             }
             RoundButtonX {
-                text: "\uE8A9"
-                font.family: "Segoe Fluent Icons"
-                font.pixelSize: 16
+                iconName: "grid"
                 ToolTip.text: "Toggle Up Next"
                 onClicked: root.queueVisible = !root.queueVisible
             }
             RoundButtonX {
-                text: "\uEB51"
-                font.family: "Segoe Fluent Icons"
-                font.pixelSize: 16
+                iconName: "heart"
                 ToolTip.text: "Support development"
                 onClicked: supportDialog.open()
             }
             RoundButtonX {
-                text: "\uE946"
-                font.family: "Segoe Fluent Icons"
-                font.pixelSize: 16
+                iconName: "info"
                 ToolTip.text: "Settings and about"
                 onClicked: aboutDialog.open()
             }
@@ -538,18 +578,18 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     spacing: 2
                                     TransportButton {
-                                        glyph: "\uE892"
+                                        iconName: "previous"
                                         ToolTip.text: "Previous"
                                         onClicked: playback.previous()
                                     }
                                     TransportButton {
                                         primary: true
-                                        glyph: (airplay.casting ? airplay.castState !== "paused" : playback.playing) ? "\uE769" : "\uE768"
+                                        iconName: (airplay.casting ? airplay.castState !== "paused" : playback.playing) ? "pause" : "play"
                                         ToolTip.text: (airplay.casting ? airplay.castState !== "paused" : playback.playing) ? "Pause" : "Play"
                                         onClicked: airplay.casting ? airplay.playPause() : playback.playPause()
                                     }
                                     TransportButton {
-                                        glyph: "\uE893"
+                                        iconName: "next"
                                         ToolTip.text: "Next"
                                         onClicked: playback.next()
                                     }
@@ -565,9 +605,7 @@ ApplicationWindow {
                             }
                             Item { Layout.fillWidth: true }
                             RoundButtonX {
-                                text: playback.muted ? "\uE74F" : "\uE767"
-                                font.family: "Segoe Fluent Icons"
-                                font.pixelSize: 16
+                                iconName: playback.muted ? "muted" : "volume"
                                 ToolTip.text: playback.muted ? "Unmute" : "Mute"
                                 visible: !airplay.casting
                                 onClicked: playback.toggleMute()
@@ -642,11 +680,14 @@ ApplicationWindow {
                                     Behavior on border.color { ColorAnimation { duration: 160 } }
                                 }
                             }
-                            RoundButtonX { text: "CC"; visible: !airplay.casting; ToolTip.text: "Audio and subtitle tracks"; onClicked: tracksPanel.open() }
                             RoundButtonX {
-                                text: root.videoFullscreen ? "\uE73F" : "\uE740"
-                                font.family: "Segoe Fluent Icons"
-                                font.pixelSize: 16
+                                iconName: "captions"
+                                visible: !airplay.casting
+                                ToolTip.text: "Audio and subtitle tracks"
+                                onClicked: tracksPanel.open()
+                            }
+                            RoundButtonX {
+                                iconName: root.videoFullscreen ? "exit-fullscreen" : "fullscreen"
                                 ToolTip.text: root.videoFullscreen ? "Exit full screen" : "Full screen"
                                 onClicked: root.toggleVideoFullscreen()
                             }
