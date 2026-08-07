@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Documented successful physical AirPlay playback and same-session seeking on
+  a Sony BRAVIA 4K VH22 running Android TV 12, including a clean post-update
+  compatibility check.
+
 ## 0.7.1 - 2026-08-07
 
 - Updated `aiohttp` to 3.14.3 and `cryptography` to 50.0.0 to resolve all

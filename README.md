@@ -187,9 +187,16 @@ See the full [privacy policy](PRIVACY.md).
 ## AirPlay compatibility
 
 Violet Relay uses the current AirPlay 2 queue command on tvOS 26 because the
-legacy `pyatv` URL playback path no longer works reliably there. This path has
-been tested on a physical Apple TV 4K running tvOS 26.5 with direct URLs,
-PC-hosted files, subtitles, seeking, and stop/continue flows.
+legacy `pyatv` URL playback path no longer works reliably there. Physical
+receiver checks currently include:
+
+- Apple TV 4K running tvOS 26.5, with direct URLs, PC-hosted files, subtitles,
+  seeking, and stop/continue flows.
+- Hisense 100E75LE with built-in VIDAA AirPlay, including full-screen playback,
+  timeline reporting, and same-session seeking.
+- Sony BRAVIA 4K VH22 running Android TV 12, including native AirPlay 2
+  playback and repeated same-session seeking. The same checks remained clean
+  after a 2026 Sony system update.
 
 Smart TVs with built-in AirPlay are discovered from the receiver's advertised
 video capability, so audio-only speakers and soundbars stay out of the casting
@@ -197,7 +204,8 @@ list. These receivers commonly omit Apple TV's separate metadata and remote
 control service. Violet Relay confirms local playback from real media requests,
 estimates progress while the AirPlay session is active, keeps stop/continue
 available, and hides controls the receiver does not expose. Receiver firmware
-varies, so built-in-TV support should still be treated as experimental. TVs
+varies, so these physical checks do not guarantee every model or firmware and
+built-in-TV support should still be treated as experimental. TVs
 that accept AirPlay media files but not fragmented HLS receive the original
 local file through a range-aware server, allowing large MKV and AV1/HDR files
 to start without making a complete copy. Selecting subtitles or a non-default
