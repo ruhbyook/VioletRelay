@@ -6,7 +6,9 @@ import inspect
 import ipaddress
 import logging
 import mimetypes
+import os
 import random
+import re
 import secrets
 import socket
 import threading
@@ -20,9 +22,34 @@ from aiohttp import web
 from pyatv import exceptions
 from pyatv.const import DeviceState, FeatureName, FeatureState, Protocol
 
+from violetrelay.services.airplay_compat import play_url_compatible
 from violetrelay.services.airplay_modern import ModernAirPlaySession
 from violetrelay.services.secure_storage import SecureFileStorage
 from violetrelay.errors import error_message
+
+
+_HLS_SEGMENT_NAME = re.compile(r"segment_(\d+)\.m4s\Z", re.IGNORECASE)
+
+
+def _requires_chunked_file_transfer(
+    count: int, *, windows: bool | None = None
+) -> bool:
+    """Return whether a file span exceeds Windows TransmitFile's DWORD size."""
+    if windows is None:
+        windows = os.name == "nt"
+    return windows and count > 0xFFFFFFFF
+
+
+class _LargeFileResponse(web.FileResponse):
+    """Use aiohttp's bounded fallback for Windows file spans above 4 GiB."""
+
+    async def _sendfile(self, request: Any, fobj: Any, offset: int, count: int):
+        if _requires_chunked_file_transfer(count):
+            writer = await web.StreamResponse.prepare(self, request)
+            if writer is None:
+                raise ConnectionError("The AirPlay media connection closed")
+            return await self._sendfile_fallback(writer, fobj, offset, count)
+        return await super()._sendfile(request, fobj, offset, count)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,10 +61,19 @@ class AirPlayDevice:
     paired_airplay: bool
     paired_companion: bool
     protocols: tuple[str, ...]
+    receiver_compatibility: bool = False
 
     @property
     def paired(self) -> bool:
         return self.paired_airplay and (self.paired_companion or "Companion" not in self.protocols)
+
+    @property
+    def transport_controls(self) -> bool:
+        """Return whether a separate remote-control protocol was discovered."""
+        return any(
+            protocol in self.protocols
+            for protocol in ("Companion", "MRP", "DMAP")
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +93,14 @@ class CastStatus:
     can_set_volume: bool = False
 
 
+class StreamReplacementError(RuntimeError):
+    """A stream seek failed, with the old cast either preserved or stopped."""
+
+    def __init__(self, message: str, *, cast_still_active: bool) -> None:
+        super().__init__(message)
+        self.cast_still_active = cast_still_active
+
+
 class _PushListener:
     def __init__(self, service: "AirPlayService") -> None:
         self.service = service
@@ -66,7 +110,7 @@ class _PushListener:
         self.service._push_updated_at = self.service.loop.time()
 
     def playstatus_error(self, _updater: Any, exception: Exception) -> None:
-        self.service.log.debug("Apple TV push metadata failed: %s", exception)
+        self.service.log.debug("AirPlay push metadata failed: %s", exception)
         self.service._push_playing = None
         self.service._push_updated_at = 0.0
 
@@ -188,6 +232,7 @@ class AirPlayService:
     VLC_BUNDLE_IDS = {"org.videolan.vlc-ios", "com.videolan.vlc-ios"}
     PLAYBACK_START_TIMEOUT_SECONDS = 15.0
     PLAYBACK_START_POLL_SECONDS = 0.5
+    METADATALESS_START_GRACE_SECONDS = 2.0
 
     def __init__(self, loop: asyncio.AbstractEventLoop, storage_path: Path):
         self.loop = loop
@@ -208,6 +253,11 @@ class AirPlayService:
         self._push_playing: Any | None = None
         self._push_updated_at = 0.0
         self._user_paused = False
+        self._metadata_available = True
+        self._estimated_started_at = 0.0
+        self._estimated_start_position = 0.0
+        self._estimated_duration = 0.0
+        self._receiver_compat_playback = False
         self.log = logging.getLogger("violetrelay.airplay")
 
     async def initialize(self) -> None:
@@ -232,23 +282,71 @@ class AirPlayService:
             companion = config.get_service(Protocol.Companion)
             protocols = tuple(service.protocol.name for service in config.services if getattr(service, "enabled", True))
             device_info = getattr(config, "device_info", None)
-            raw_model = getattr(device_info, "model", "Apple TV") or "Apple TV"
+            raw_model = getattr(device_info, "model", "") or ""
             model_name = getattr(raw_model, "name", str(raw_model))
-            if companion is None and "AppleTV" not in model_name.replace(" ", ""):
+            advertised_model = str(
+                getattr(device_info, "raw_model", "")
+                or getattr(airplay, "properties", {}).get("model", "")
+            )
+            if model_name in {"", "Unknown"}:
+                model_name = advertised_model or "AirPlay receiver"
+            if airplay is None or not self._supports_airplay_video(airplay):
+                # AirPlay audio devices (HomePods, speakers and soundbars) are
+                # useful RAOP targets but cannot display Violet Relay video.
                 continue
             model = self._friendly_model(model_name)
+            manufacturer = str(
+                getattr(airplay, "properties", {}).get("manufacturer", "")
+                or getattr(airplay, "properties", {}).get("integrator", "")
+            ).strip()
+            if (
+                manufacturer
+                and "apple" not in manufacturer.casefold()
+                and manufacturer.casefold() not in model.casefold()
+            ):
+                model = f"{manufacturer} {model}"
             devices.append(
                 AirPlayDevice(
                     identifier=identifier,
-                    name=str(config.name or "Apple TV"),
+                    name=str(config.name or "AirPlay receiver"),
                     address=str(config.address),
                     model=model,
                     paired_airplay=bool(airplay and airplay.credentials),
                     paired_companion=bool(companion and companion.credentials),
                     protocols=protocols,
+                    receiver_compatibility=self._is_third_party_video_receiver(
+                        config, airplay
+                    ),
                 )
             )
         return sorted(devices, key=lambda device: device.name.casefold())
+
+    @staticmethod
+    def _airplay_feature_flags(service: Any) -> int:
+        properties = getattr(service, "properties", {})
+        raw_features = str(
+            properties.get("features", properties.get("ft", "0x0"))
+        )
+        try:
+            parts = [int(part, 16) for part in raw_features.split(",")]
+        except (TypeError, ValueError):
+            return 0
+        flags = parts[0] if parts else 0
+        if len(parts) > 1:
+            flags |= parts[1] << 32
+        return flags
+
+    @classmethod
+    def _supports_airplay_video(cls, service: Any) -> bool:
+        """Use advertised AirPlay feature bits to exclude audio-only targets."""
+        flags = cls._airplay_feature_flags(service)
+        supports_video_v1 = bool(flags & (1 << 0))
+        supports_video_v2 = bool(flags & (1 << 49))
+        return supports_video_v1 or supports_video_v2
+
+    @classmethod
+    def _supports_airplay_play_queue(cls, service: Any) -> bool:
+        return bool(cls._airplay_feature_flags(service) & (1 << 33))
 
     @staticmethod
     def _friendly_model(model: str) -> str:
@@ -265,7 +363,7 @@ class AirPlayService:
         try:
             return self.configs[identifier]
         except KeyError as error:
-            raise RuntimeError("Apple TV is no longer available; scan again") from error
+            raise RuntimeError("The AirPlay receiver is no longer available; scan again") from error
 
     async def begin_pair(self, identifier: str, protocol_name: str) -> PairingPrompt | None:
         try:
@@ -301,7 +399,7 @@ class AirPlayService:
             if pairing.device_provides_pin:
                 normalized = "".join(character for character in pin if character.isdigit())
                 if not normalized:
-                    raise ValueError("Enter the PIN displayed on Apple TV")
+                    raise ValueError("Enter the PIN displayed on the AirPlay receiver")
                 pairing.pin(int(normalized))
             await asyncio.wait_for(pairing.finish(), timeout=30)
             paired = bool(pairing.has_paired)
@@ -326,16 +424,139 @@ class AirPlayService:
         except Exception:
             self.log.warning("Pairing session cleanup failed", exc_info=True)
 
-    async def start_cast(self, identifier: str, source: str, position_seconds: float = 0) -> None:
+    async def start_cast(
+        self,
+        identifier: str,
+        source: str,
+        position_seconds: float = 0,
+        duration_seconds: float = 0,
+    ) -> None:
         await self.stop_cast()
         try:
-            await self._start_cast(identifier, source, position_seconds)
+            await self._start_cast(
+                identifier, source, position_seconds, duration_seconds
+            )
         except Exception:
             await self.stop_cast()
             raise
 
+    async def replace_stream(
+        self,
+        source: str,
+        position_seconds: float = 0,
+        duration_seconds: float = 0,
+    ) -> None:
+        """Replace generated HLS while preserving the active AirPlay 2 session."""
+        if (
+            self.atv is None
+            or self.modern_session is None
+            or not self._receiver_compat_playback
+        ):
+            raise RuntimeError(
+                "This AirPlay receiver cannot seek by replacing its active stream"
+            )
+        source_path = Path(source)
+        if not source_path.is_file() or source_path.suffix.casefold() != ".m3u8":
+            raise RuntimeError("AirPlay stream replacement requires a local HLS playlist")
+
+        old_runner = self.hls_runner
+        old_requests = self.hls_requests
+        old_media_event = self._media_request_event
+        old_entry_name = self._served_entry_name
+        new_runner: web.AppRunner | None = None
+        switched = False
+        try:
+            play_source = await self._serve_hls(
+                source_path.parent,
+                str(self.modern_session.config.address),
+            )
+            new_runner = self.hls_runner
+            await self.modern_session.replace(play_source, position_seconds)
+            switched = True
+
+            # A finite generated playlist exposes the original movie timeline,
+            # including after an in-session queue replacement.
+            self._estimated_started_at = 0.0
+            self._estimated_start_position = max(0.0, position_seconds)
+            self._estimated_duration = max(0.0, duration_seconds)
+            self._status_failures = 0
+            self._push_playing = None
+            self._push_updated_at = 0.0
+            await self._wait_until_playback_started()
+            await self.modern_session.finish_replacement()
+        except Exception as error:
+            indeterminate = bool(
+                self.modern_session is not None
+                and self.modern_session.replacement_indeterminate
+            )
+            cast_still_active = False
+            if indeterminate:
+                # The receiver did not conclusively report whether OLD or NEW
+                # is current. Stop the shared queue before closing either
+                # server; guessing could strand it on a dead URL.
+                try:
+                    await self.stop_cast()
+                finally:
+                    if old_runner is not None:
+                        try:
+                            await old_runner.cleanup()
+                        except Exception:
+                            self.log.warning(
+                                "Previous media server cleanup failed after an "
+                                "indeterminate seek",
+                                exc_info=True,
+                            )
+            elif not switched:
+                # The current queue item is still valid. Discard only the new
+                # server and put its predecessor back into the active aliases.
+                if new_runner is not None:
+                    try:
+                        await new_runner.cleanup()
+                    except Exception:
+                        self.log.warning(
+                            "Replacement media server cleanup failed",
+                            exc_info=True,
+                        )
+                self.hls_runner = old_runner
+                self.hls_requests = old_requests
+                self._media_request_event = old_media_event
+                self._served_entry_name = old_entry_name
+                cast_still_active = True
+            else:
+                # NEW was selected but could not be confirmed. Stop it instead
+                # of leaving the UI attached to an unusable queue item.
+                try:
+                    await self.stop_cast()
+                finally:
+                    if old_runner is not None:
+                        try:
+                            await old_runner.cleanup()
+                        except Exception:
+                            self.log.warning(
+                                "Previous media server cleanup failed after seek",
+                                exc_info=True,
+                            )
+            raise StreamReplacementError(
+                f"AirPlay could not seek to the requested position: {error}",
+                cast_still_active=cast_still_active,
+            ) from error
+        else:
+            if old_runner is not None and old_runner is not new_runner:
+                try:
+                    await old_runner.cleanup()
+                except Exception:
+                    self.log.warning(
+                        "Previous media server cleanup failed after seek",
+                        exc_info=True,
+                    )
+            self.log.info("AirPlay stream replaced inside the active queue session")
+
     async def _start_cast(
-        self, identifier: str, source: str, position_seconds: float = 0
+        self,
+        identifier: str,
+        source: str,
+        position_seconds: float = 0,
+        duration_seconds: float = 0,
     ) -> None:
         config = self._config(identifier)
         self.atv = await asyncio.wait_for(
@@ -345,33 +566,44 @@ class AirPlayService:
         self.explicit_stop = False
         self._user_paused = False
         self._status_failures = 0
+        self._metadata_available = self._supports_playback_metadata()
+        self._estimated_started_at = 0.0
+        self._estimated_start_position = max(0.0, position_seconds)
+        self._estimated_duration = max(0.0, duration_seconds)
+        self._receiver_compat_playback = self._is_third_party_video_receiver(
+            config, airplay_service=config.get_service(Protocol.AirPlay)
+        )
         self.cast_transport = "airplay"
         play_source = source
         source_path = Path(source)
         if source_path.is_file() and source_path.suffix.lower() == ".m3u8":
             play_source = await self._serve_hls(source_path.parent, str(config.address))
-            position_seconds = 0
         airplay = config.get_service(Protocol.AirPlay)
         os_version = str(getattr(airplay, "properties", {}).get("osvers", ""))
         self.log.info(
             "Starting cast: receiver=%s tvOS=%s source=%s",
-            str(getattr(config, "name", "Apple TV")),
+            str(getattr(config, "name", "AirPlay receiver")),
             os_version or "unknown",
             "local-server" if self.hls_runner is not None else "remote-url",
         )
 
-        # tvOS 26 acknowledges the legacy AirPlay /play request but never creates
-        # a player. Current Apple senders use an AirPlay 2 PTP session followed by
-        # /command insertPlayQueueItem, so use that hardware-verified path first.
-        # VLC remains an emergency compatibility transport.
-        if os_version.startswith("26."):
+        # tvOS 26 and built-in TVs advertising AirPlay queue playback require
+        # an AirPlay 2 PTP session followed by /command insertPlayQueueItem.
+        # VLC remains an emergency compatibility transport on Apple TV.
+        modern_receiver = os_version.startswith("26.") or (
+            self._receiver_compat_playback
+            and self._supports_airplay_play_queue(airplay)
+        )
+        modern_error: Exception | None = None
+        if modern_receiver:
             if source_path.is_file() and source_path.suffix.lower() != ".m3u8":
                 play_source = await self._serve_file(source_path, str(config.address))
             try:
                 await self._start_modern_cast(
                     config, airplay, play_source, position_seconds
                 )
-            except Exception as modern_error:
+            except Exception as error:
+                modern_error = error
                 self.log.warning("Modern AirPlay failed: %s", modern_error)
                 if self.modern_session is not None:
                     await self.modern_session.close()
@@ -381,21 +613,40 @@ class AirPlayService:
                 self.hls_requests.clear()
                 if self._media_request_event is not None:
                     self._media_request_event.clear()
-                try:
-                    await self._start_vlc_cast(
-                        play_source, os_version, position_seconds
-                    )
-                except Exception as vlc_error:
-                    await self.stop_cast()
-                    raise RuntimeError(
-                        f"Modern AirPlay failed: {modern_error}. "
-                        f"VLC fallback failed: {vlc_error}"
-                    ) from modern_error
-            return
+                if os_version.startswith("26."):
+                    try:
+                        await self._start_vlc_cast(
+                            play_source, os_version, position_seconds
+                        )
+                    except Exception as vlc_error:
+                        await self.stop_cast()
+                        raise RuntimeError(
+                            f"Modern AirPlay failed: {modern_error}. "
+                            f"VLC fallback failed: {vlc_error}"
+                        ) from modern_error
+                    return
+                self.log.info(
+                    "Trying the built-in TV URL-play fallback after queue failure"
+                )
+            else:
+                return
 
-        self.play_task = asyncio.create_task(
-            self.atv.stream.play_url(play_source, position=position_seconds)
-        )
+        if self._receiver_compat_playback:
+            self.log.info(
+                "Using built-in TV AirPlay compatibility transport"
+            )
+            playback = play_url_compatible(
+                config,
+                airplay,
+                play_source,
+                position_seconds,
+                self.log,
+            )
+        else:
+            playback = self.atv.stream.play_url(
+                play_source, position=position_seconds
+            )
+        self.play_task = asyncio.create_task(playback)
         try:
             await self._wait_until_playback_started(self.play_task)
         except exceptions.HttpError as error:
@@ -405,6 +656,13 @@ class AirPlayService:
                     "This is a known tvOS 26 / pyatv play_url regression; the video "
                     "and GPU conversion are not the cause."
                 ) from error
+            raise
+        except Exception as error:
+            if modern_error is not None:
+                raise RuntimeError(
+                    f"AirPlay 2 queue playback failed: {modern_error}. "
+                    f"The receiver's URL fallback also failed: {error}"
+                ) from modern_error
             raise
 
     async def _start_modern_cast(
@@ -417,7 +675,10 @@ class AirPlayService:
         if airplay_service is None or not airplay_service.credentials:
             raise RuntimeError("Pair AirPlay before starting playback")
         self.modern_session = ModernAirPlaySession(
-            config, airplay_service, self.log
+            config,
+            airplay_service,
+            self.log,
+            receiver_compatibility=self._receiver_compat_playback,
         )
         try:
             await self.modern_session.start(source, position_seconds)
@@ -439,11 +700,11 @@ class AirPlayService:
                 if self.play_task in done:
                     await self.play_task
                     raise RuntimeError(
-                        "Apple TV stopped before media playback was confirmed"
+                        "The AirPlay receiver stopped before media playback was confirmed"
                     )
                 if started_waiter not in done:
                     raise RuntimeError(
-                        "Apple TV accepted the media queue but did not start playback"
+                        "The AirPlay receiver accepted the media queue but did not start playback"
                     )
             finally:
                 if not started_waiter.done():
@@ -465,10 +726,24 @@ class AirPlayService:
         self, started_event: asyncio.Event | None = None
     ) -> None:
         if self.atv is None:
-            raise RuntimeError("Apple TV disconnected before playback started")
+            raise RuntimeError("The AirPlay receiver disconnected before playback started")
         await self._wait_until_playback_started()
         if started_event is not None:
             started_event.set()
+        if not self._metadata_available:
+            while True:
+                await asyncio.sleep(1)
+                if (
+                    self._estimated_duration > 0
+                    and self._estimated_started_at > 0
+                    and self.loop.time() - self._estimated_started_at
+                    >= max(
+                        0.0,
+                        self._estimated_duration
+                        - self._estimated_start_position,
+                    )
+                ):
+                    return
         idle_samples = 0
         confirmed_at = self.loop.time()
         while True:
@@ -571,36 +846,56 @@ class AirPlayService:
         self, playback_task: asyncio.Task | None = None
     ) -> None:
         """Require receiver state and a real local-media fetch before success."""
-        deadline = (
-            asyncio.get_running_loop().time()
-            + self.PLAYBACK_START_TIMEOUT_SECONDS
-        )
+        started_waiting_at = asyncio.get_running_loop().time()
+        deadline = started_waiting_at + self.PLAYBACK_START_TIMEOUT_SECONDS
         receiver_playing = False
         last_metadata_error: Exception | None = None
         while asyncio.get_running_loop().time() < deadline:
             if playback_task is not None and playback_task.done():
                 if playback_task.cancelled():
                     raise RuntimeError(
-                        "Apple TV cancelled playback before it started"
+                        "The AirPlay receiver cancelled playback before it started"
                     )
                 task_error = playback_task.exception()
                 if task_error is not None:
                     raise task_error
-            try:
-                playing = await self._playing()
-                last_metadata_error = None
+            if self._metadata_available:
+                try:
+                    playing = await self._playing()
+                    last_metadata_error = None
+                    receiver_playing = (
+                        playing.device_state == DeviceState.Playing
+                    )
+                except Exception as error:
+                    last_metadata_error = error
+                    receiver_playing = False
+            else:
+                # Stand-alone TV implementations expose AirPlay video but no
+                # Companion/MRP metadata. A pending URL task or live queue
+                # session proves that the receiver accepted the command; for
+                # local media, also require an actual video-byte request.
                 receiver_playing = (
-                    playing.device_state == DeviceState.Playing
+                    (
+                        playback_task is not None
+                        and not playback_task.done()
+                    )
+                    or (
+                        playback_task is None
+                        and self.modern_session is not None
+                        and self._receiver_compat_playback
+                    )
+                ) and self.loop.time() - started_waiting_at >= (
+                    self.METADATALESS_START_GRACE_SECONDS
                 )
-            except Exception as error:
-                last_metadata_error = error
-                receiver_playing = False
             if receiver_playing and self._receiver_requested_media_data():
                 # Seed the push cache with the directly confirmed state so a
                 # pre-command Idle notification cannot immediately look like
                 # a natural end before the next receiver push arrives.
-                self._push_playing = playing
-                self._push_updated_at = self.loop.time()
+                if self._metadata_available:
+                    self._push_playing = playing
+                    self._push_updated_at = self.loop.time()
+                else:
+                    self._estimated_started_at = self.loop.time()
                 self.log.info(
                     "Cast playback confirmed: transport=%s media_fetch=%s",
                     self.cast_transport or "airplay",
@@ -619,22 +914,51 @@ class AirPlayService:
             )
             if playlist_seen:
                 raise RuntimeError(
-                    "Apple TV opened the playlist but never requested video data. "
-                    "Retry the cast; if it repeats, restart Apple TV and check the "
+                    "The AirPlay receiver opened the playlist but never requested video data. "
+                    "Retry the cast; if it repeats, restart the receiver and check the "
                     "diagnostic log."
                 )
             raise RuntimeError(
-                "Apple TV accepted the cast but never connected to this PC's media "
+                "The AirPlay receiver accepted the cast but never connected to this PC's media "
                 "server. Keep both devices on the same private network and allow "
                 "Violet Relay through Windows Firewall."
             )
         if last_metadata_error is not None:
             raise RuntimeError(
-                "Apple TV could not confirm that playback started: "
+                "The AirPlay receiver could not confirm that playback started: "
                 f"{last_metadata_error}"
             ) from last_metadata_error
         raise RuntimeError(
-            "Apple TV accepted the media queue but did not start playback"
+            "The AirPlay receiver accepted the media queue but did not start playback"
+        )
+
+    def _supports_playback_metadata(self) -> bool:
+        """Return whether the connected receiver can report playback state."""
+        if self.atv is None:
+            return False
+        features = getattr(self.atv, "features", None)
+        if features is None:
+            # Keep compatibility with older pyatv facades and lightweight test
+            # doubles where feature discovery is not exposed.
+            return True
+        try:
+            return features.in_state(
+                FeatureState.Available, FeatureName.Position
+            )
+        except Exception:
+            return True
+
+    @staticmethod
+    def _is_third_party_video_receiver(config: Any, airplay_service: Any) -> bool:
+        if airplay_service is None:
+            return False
+        device_info = getattr(config, "device_info", None)
+        raw_model = str(
+            getattr(device_info, "raw_model", "")
+            or getattr(airplay_service, "properties", {}).get("model", "")
+        )
+        return bool(raw_model) and not raw_model.replace(" ", "").startswith(
+            "AppleTV"
         )
 
     async def _serve_hls(self, directory: Path, device_address: str) -> str:
@@ -654,22 +978,44 @@ class AirPlayService:
             raise FileNotFoundError(
                 f"Prepared media is no longer available: {entry_name}"
             )
-        self.hls_requests.clear()
-        self._media_request_event = asyncio.Event()
-        self._served_entry_name = entry_name
+        requests: list[str] = []
+        media_request_event = asyncio.Event()
         app = web.Application()
 
         async def file_handler(request: web.Request) -> web.StreamResponse:
             relative = request.match_info.get("filename", "")
-            self.hls_requests.append(relative)
+            requests.append(relative)
             self.log.debug(
-                "Apple TV media request: method=%s asset=%s range=%s",
+                "AirPlay media request: method=%s asset=%s range=%s",
                 request.method,
                 relative,
                 request.headers.get("Range", "none"),
             )
             target = (directory / relative).resolve()
-            if target.parent != directory or not target.is_file():
+            if target.parent != directory:
+                raise web.HTTPNotFound()
+            if not target.is_file():
+                segment_match = _HLS_SEGMENT_NAME.fullmatch(target.name)
+                if segment_match is not None:
+                    requested_index = int(segment_match.group(1))
+                    produced_indices = [
+                        int(match.group(1))
+                        for path in directory.glob("segment_*.m4s")
+                        if (match := _HLS_SEGMENT_NAME.fullmatch(path.name))
+                    ]
+                    # A complete VOD manifest advertises the whole movie while
+                    # FFmpeg remains about 30 seconds ahead. Wait briefly for a
+                    # future segment's atomic rename instead of racing it with
+                    # a transient 404. Missing prefix segments are from before
+                    # this seek and must fail immediately if ever requested.
+                    if not produced_indices or requested_index >= min(produced_indices):
+                        deadline = asyncio.get_running_loop().time() + 8.0
+                        while (
+                            not target.is_file()
+                            and asyncio.get_running_loop().time() < deadline
+                        ):
+                            await asyncio.sleep(0.05)
+            if not target.is_file():
                 raise web.HTTPNotFound()
             content_types = {
                 ".m3u8": "application/vnd.apple.mpegurl",
@@ -689,22 +1035,21 @@ class AirPlayService:
             if (
                 request.method == "GET"
                 and target.suffix.casefold() != ".m3u8"
-                and self._media_request_event is not None
             ):
-                self._media_request_event.set()
-                if len(self.hls_requests) <= 4:
+                media_request_event.set()
+                if len(requests) <= 4:
                     self.log.info(
-                        "Apple TV requested playable media data: asset=%s",
+                        "AirPlay receiver requested playable media data: asset=%s",
                         target.suffix.casefold() or "file",
                     )
-            return web.FileResponse(target, headers=headers)
+            return _LargeFileResponse(target, headers=headers)
 
         app.router.add_get(f"/{token}/{{filename:.*}}", file_handler)
-        self.hls_runner = web.AppRunner(app, access_log=None)
+        runner = web.AppRunner(app, access_log=None)
         try:
-            await self.hls_runner.setup()
+            await runner.setup()
             bind_address = "::" if self._is_ipv6(device_address) else "0.0.0.0"
-            site = web.TCPSite(self.hls_runner, bind_address, 0)
+            site = web.TCPSite(runner, bind_address, 0)
             await site.start()
             server = getattr(site, "_server", None)
             sockets = list(getattr(server, "sockets", []) or [])
@@ -713,8 +1058,12 @@ class AirPlayService:
             port = sockets[0].getsockname()[1]
             local_address = self._local_address_for(device_address)
         except Exception:
-            await self._stop_hls_server()
+            await runner.cleanup()
             raise
+        self.hls_runner = runner
+        self.hls_requests = requests
+        self._media_request_event = media_request_event
+        self._served_entry_name = entry_name
         url_address = f"[{local_address}]" if ":" in local_address else local_address
         self.log.info(
             "Local cast server ready: address=%s port=%d entry=%s",
@@ -740,7 +1089,7 @@ class AirPlayService:
                 probe.connect((device_address, 7000))
             except OSError as error:
                 raise RuntimeError(
-                    "No local network route to Apple TV is available"
+                    "No local network route to the AirPlay receiver is available"
                 ) from error
             return str(probe.getsockname()[0])
         finally:
@@ -756,7 +1105,12 @@ class AirPlayService:
 
     async def command(self, name: str, value: float | None = None) -> None:
         if self.atv is None:
-            raise RuntimeError("No Apple TV cast is active")
+            raise RuntimeError("No AirPlay cast is active")
+        if not self._metadata_available and name != "stop":
+            raise RuntimeError(
+                "This AirPlay receiver does not expose playback controls; "
+                "use Stop casting or Continue here"
+            )
         remote = self.atv.remote_control
         if name == "seek":
             await asyncio.wait_for(
@@ -765,7 +1119,7 @@ class AirPlayService:
         else:
             action = getattr(remote, name, None)
             if action is None:
-                raise RuntimeError(f"Apple TV does not expose the {name} command")
+                raise RuntimeError(f"The AirPlay receiver does not expose the {name} command")
             await asyncio.wait_for(action(), timeout=10)
             if name == "pause":
                 self._user_paused = True
@@ -774,7 +1128,7 @@ class AirPlayService:
 
     async def _playing(self):
         if self.atv is None:
-            raise RuntimeError("No Apple TV cast is active")
+            raise RuntimeError("No AirPlay cast is active")
         return await asyncio.wait_for(self.atv.metadata.playing(), timeout=5)
 
     def _start_push_updates(self) -> None:
@@ -788,11 +1142,11 @@ class AirPlayService:
             updater.listener = listener
             updater.start(initial_delay=0)
             self._push_listener = listener
-            self.log.info("Apple TV push metadata enabled")
+            self.log.info("AirPlay push metadata enabled")
         except Exception:
             self._push_listener = None
             self.log.info(
-                "Apple TV push metadata unavailable; using polling",
+                "AirPlay push metadata unavailable; using polling",
                 exc_info=True,
             )
 
@@ -838,7 +1192,7 @@ class AirPlayService:
         _volume, available = self._receiver_volume()
         if self.atv is None or not available:
             raise RuntimeError(
-                "Apple TV does not expose receiver volume for this output"
+                "The AirPlay receiver does not expose volume control for this output"
             )
         await asyncio.wait_for(
             self.atv.audio.set_volume(max(0.0, min(100.0, float(level)))),
@@ -854,9 +1208,23 @@ class AirPlayService:
             error = self.play_task.exception()
             if error:
                 return CastStatus(
-                    "error", 0, 0, error_message(error, "Apple TV playback failed")
+                    "error", 0, 0, error_message(error, "AirPlay playback failed")
                 )
             return CastStatus("stopped" if self.explicit_stop else "ended", 0, 0)
+        if not self._metadata_available:
+            elapsed = (
+                max(0.0, self.loop.time() - self._estimated_started_at)
+                if self._estimated_started_at > 0
+                else 0.0
+            )
+            position = self._estimated_start_position + elapsed
+            if self._estimated_duration > 0:
+                position = min(position, self._estimated_duration)
+            return CastStatus(
+                "playing",
+                int(position),
+                int(self._estimated_duration),
+            )
         try:
             playing = await self._playing_with_fallback()
             self._status_failures = 0
@@ -885,17 +1253,19 @@ class AirPlayService:
                     "error",
                     0,
                     0,
-                    "Lost connection to Apple TV. Retry casting or continue locally.",
+                    "Lost connection to the AirPlay receiver. Retry casting or continue locally.",
                 )
             return CastStatus("playing", 0, 0)
 
     async def stop_cast(self) -> None:
         self.explicit_stop = True
-        if self.atv is not None:
+        if self.atv is not None and not (
+            self.modern_session is not None and self._receiver_compat_playback
+        ):
             try:
                 await asyncio.wait_for(self.atv.remote_control.stop(), timeout=5)
             except Exception:
-                self.log.info("Apple TV did not acknowledge the stop command")
+                self.log.info("AirPlay receiver did not acknowledge the stop command")
         if self.play_task is not None and not self.play_task.done():
             self.play_task.cancel()
             try:
@@ -907,6 +1277,7 @@ class AirPlayService:
         self.modern_session = None
         if modern_session is not None:
             try:
+                await modern_session.stop()
                 await modern_session.close()
             except Exception:
                 self.log.warning("Modern AirPlay session cleanup failed", exc_info=True)
@@ -921,10 +1292,15 @@ class AirPlayService:
                         asyncio.gather(*pending, return_exceptions=True), timeout=5
                     )
             except Exception:
-                self.log.warning("Apple TV connection cleanup failed", exc_info=True)
+                self.log.warning("AirPlay connection cleanup failed", exc_info=True)
         self.cast_transport = ""
         self._user_paused = False
         self._status_failures = 0
+        self._metadata_available = True
+        self._estimated_started_at = 0.0
+        self._estimated_start_position = 0.0
+        self._estimated_duration = 0.0
+        self._receiver_compat_playback = False
         try:
             await self._stop_hls_server()
         except Exception:

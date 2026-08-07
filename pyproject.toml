@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "violetrelay"
-version = "0.6.3"
-description = "A cinematic Windows media player with optional Apple TV casting"
+version = "0.7.0"
+description = "A cinematic Windows media player with optional AirPlay TV casting"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = "GPL-3.0-or-later"

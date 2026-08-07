@@ -164,6 +164,56 @@ def test_local_cast_is_confirmed_after_playable_bytes_are_requested(tmp_path):
     asyncio.run(scenario())
 
 
+def test_metadata_free_tv_uses_media_fetch_and_estimates_position(tmp_path):
+    async def scenario():
+        service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")
+        service.METADATALESS_START_GRACE_SECONDS = 0
+        service._metadata_available = False
+        service._estimated_duration = 120
+        service.atv = object()
+        service.hls_runner = object()
+        service._media_request_event = asyncio.Event()
+        service._media_request_event.set()
+        pending = asyncio.create_task(asyncio.Event().wait())
+        try:
+            await service._wait_until_playback_started(pending)
+            service._estimated_started_at -= 4.2
+            status = await service.status()
+        finally:
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+            service.play_task = None
+            service.atv = None
+            service.hls_runner = None
+        return status
+
+    status = asyncio.run(scenario())
+    assert status.state == "playing"
+    assert status.position_seconds == 4
+    assert status.duration_seconds == 120
+
+
+def test_metadata_free_tv_does_not_claim_start_without_video_bytes(tmp_path):
+    async def scenario():
+        service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")
+        service.PLAYBACK_START_TIMEOUT_SECONDS = 0.03
+        service.PLAYBACK_START_POLL_SECONDS = 0.005
+        service.METADATALESS_START_GRACE_SECONDS = 0
+        service._metadata_available = False
+        service.hls_runner = object()
+        service._media_request_event = asyncio.Event()
+        pending = asyncio.create_task(asyncio.Event().wait())
+        try:
+            with pytest.raises(RuntimeError, match="never connected"):
+                await service._wait_until_playback_started(pending)
+        finally:
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+            service.hls_runner = None
+
+    asyncio.run(scenario())
+
+
 def test_fresh_push_metadata_avoids_polling(tmp_path):
     async def scenario():
         service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")

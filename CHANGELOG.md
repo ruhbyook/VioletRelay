@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+## 0.7.0 - 2026-08-07
+
+- Added discovery and casting support for smart TVs that advertise built-in
+  AirPlay video, while continuing to filter out audio-only speakers and
+  soundbars.
+- Added playback confirmation and estimated progress for AirPlay TV receivers
+  without Apple TV metadata services, and hide remote controls those receivers
+  do not expose.
+- Added direct original-file playback and large-file range streaming for
+  built-in TV firmware that accepts AirPlay files but not fragmented HLS.
+- Fixed AirPlay progress overlays showing wall-clock time by publishing complete
+  movie timelines for HDR, subtitle-burned, and stream-copy HLS playback.
+
 ## 0.6.3 - 2026-07-30
 
 - Added an AirPlay-panel reminder to select subtitles with **CC** before

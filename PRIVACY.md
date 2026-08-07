@@ -9,9 +9,9 @@ URLs from the application.
 
 Violet Relay accesses the network only for features initiated by the user:
 
-- scanning the local network for Apple TV devices;
-- pairing with and controlling a selected Apple TV;
-- temporarily serving selected media to that Apple TV over the local network;
+- scanning the local network for AirPlay video receivers;
+- pairing with and controlling a selected AirPlay receiver;
+- temporarily serving selected media to that receiver over the local network;
 - opening a direct HTTP/HTTPS media URL supplied by the user; and
 - downloading the optional FFmpeg media tools after the user chooses
   **Install**.
@@ -36,7 +36,7 @@ Depending on features used, Violet Relay stores:
 
 - window, volume, cache, and preferred-device settings;
 - resume positions for local media;
-- Apple TV pairing credentials encrypted with Windows DPAPI for the current
+- AirPlay pairing credentials encrypted with Windows DPAPI for the current
   Windows user;
 - prepared cast media and temporary streaming segments;
 - the verified FFmpeg tools if the user installs them; and

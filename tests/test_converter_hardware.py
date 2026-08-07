@@ -8,6 +8,7 @@ from violetrelay.services.cache import CastCache
 from violetrelay.services.converter import (
     BACKEND_LABELS,
     EncoderBackend,
+    HlsSession,
     MediaPreparer,
 )
 from violetrelay.services.media import MediaInfo, MediaStream
@@ -143,11 +144,19 @@ def test_hdr_hls_is_paced_and_publishes_complete_segments(tmp_path, monkeypatch)
     captured = {}
 
     class FakeSession:
-        def __init__(self, directory, command, duration, _progress):
+        def __init__(
+            self,
+            directory,
+            command,
+            duration,
+            _progress,
+            producer_manifest_name="index.m3u8",
+        ):
             captured.update(
                 directory=directory,
                 command=command,
                 duration=duration,
+                producer_manifest_name=producer_manifest_name,
             )
 
     monkeypatch.setattr(converter_module, "HlsSession", FakeSession)
@@ -168,7 +177,28 @@ def test_hdr_hls_is_paced_and_publishes_complete_segments(tmp_path, monkeypatch)
     assert command[command.index("-hls_flags") + 1] == (
         "independent_segments+temp_file"
     )
-    assert captured["duration"] == 107.5
+    assert command[command.index("-ss") + 1] == "12.000"
+    assert command[command.index("-start_number") + 1] == "3"
+    assert command[-1].endswith("producer.m3u8")
+    assert captured["producer_manifest_name"] == "producer.m3u8"
+    assert captured["duration"] == 108
+
+
+def test_hdr_vod_timeline_declares_full_duration_and_seek_boundary(tmp_path):
+    session = object.__new__(HlsSession)
+    session.manifest = tmp_path / "index.m3u8"
+
+    session.publish_vod_timeline(10.5, first_real_segment=2)
+
+    playlist = session.manifest.read_text(encoding="utf-8")
+    assert "#EXT-X-PLAYLIST-TYPE:VOD" in playlist
+    assert playlist.endswith("#EXT-X-ENDLIST\n")
+    assert playlist.count("#EXTINF:") == 3
+    assert "#EXTINF:2.500000,\nsegment_000002.m4s" in playlist
+    assert (
+        '#EXT-X-DISCONTINUITY\n#EXT-X-MAP:URI="init.mp4"\n'
+        "#EXTINF:2.500000,\nsegment_000002.m4s"
+    ) in playlist
 
 
 def test_hdr_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
@@ -191,6 +221,9 @@ def test_hdr_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
         def wait_until_ready(self, cancel):
             if self.backend == EncoderBackend.NVIDIA:
                 raise RuntimeError("NVDEC does not support this stream")
+
+        def publish_vod_timeline(self, duration, first_real_segment):
+            self.published = (duration, first_real_segment)
 
         def stop(self):
             self.stopped = True
@@ -215,6 +248,9 @@ def test_hdr_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
     assert attempts == [EncoderBackend.NVIDIA, EncoderBackend.AMD]
     assert sessions[0].stopped
     assert not sessions[1].stopped
+    assert sessions[1].published == (120, 2)
+    assert result.absolute_timeline
+    assert result.start_position_seconds == 10.0
 
 
 def test_subtitle_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
@@ -238,6 +274,9 @@ def test_subtitle_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
             assert not cancel.is_set()
             if self.backend == EncoderBackend.NVIDIA:
                 raise RuntimeError("NVENC could not initialize")
+
+        def publish_vod_timeline(self, duration, first_real_segment):
+            self.published = (duration, first_real_segment)
 
         def stop(self):
             self.stopped = True
@@ -274,6 +313,9 @@ def test_subtitle_stream_fails_over_to_next_gpu(tmp_path, monkeypatch):
     assert attempts == [EncoderBackend.NVIDIA, EncoderBackend.AMD]
     assert sessions[0].stopped
     assert not sessions[1].stopped
+    assert not hasattr(sessions[0], "published")
+    assert sessions[1].published == (120, 2)
+    assert result.absolute_timeline
 
 
 def test_cuda_subtitle_filter_failure_retries_compatible_nvidia_path(
@@ -299,6 +341,9 @@ def test_cuda_subtitle_filter_failure_retries_compatible_nvidia_path(
             assert not cancel.is_set()
             if self.accelerated:
                 raise RuntimeError("scale_cuda failed to configure input")
+
+        def publish_vod_timeline(self, duration, first_real_segment):
+            self.published = (duration, first_real_segment)
 
         def stop(self):
             self.stopped = True
@@ -337,6 +382,9 @@ def test_cuda_subtitle_filter_failure_retries_compatible_nvidia_path(
     ]
     assert sessions[0].stopped
     assert not sessions[1].stopped
+    assert not hasattr(sessions[0], "published")
+    assert sessions[1].published == (120, 2)
+    assert result.absolute_timeline
 
 
 def test_cuda_subtitle_pipeline_is_not_used_for_bitmap_subtitles(tmp_path):

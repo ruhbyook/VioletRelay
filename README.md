@@ -1,4 +1,4 @@
-# Violet Relay - Free Windows Media Player with Apple TV AirPlay Casting
+# Violet Relay - Free Windows Media Player with AirPlay Casting
 
 <p align="center">
   <img src="assets/branding/violetrelay-logo.png" width="112" alt="Violet Relay icon">
@@ -12,19 +12,19 @@
 
 Violet Relay is a free and open-source Windows 11 media player for local MKV,
 MP4, MOV, audio, and other video files. It plays media on the PC and can
-optionally cast local video from Windows to Apple TV over AirPlay, including a
-selected embedded or external subtitle track.
+optionally cast local video from Windows to Apple TV or a compatible smart TV
+with built-in AirPlay, including a selected embedded or external subtitle track.
 
-Apple TV casting is an optional extra. You can use Violet Relay entirely as a
-local player without owning an Apple TV or enabling network discovery.
+AirPlay casting is an optional extra. You can use Violet Relay entirely as a
+local player without owning an AirPlay receiver or enabling network discovery.
 
 ## What Violet Relay is for
 
 | Need | Violet Relay |
 | --- | --- |
 | Play local video and audio on Windows 11 | Hardware-accelerated playback, fullscreen controls, queues, tracks, and resume history |
-| Cast an MKV or other local video from Windows to Apple TV | Direct streaming, fast remuxing, or automatic hardware conversion as required |
-| Watch Apple TV playback with subtitles | Burns the selected embedded track or external subtitle into the outgoing stream |
+| Cast an MKV or other local video from Windows to an AirPlay TV | Direct streaming, fast remuxing, or automatic hardware conversion as required |
+| Watch AirPlay playback with subtitles | Burns the selected embedded track or external subtitle into the outgoing stream |
 | Resume a long movie or audiobook later | Saves unfinished local-media positions automatically |
 | Avoid accounts, ads, subscriptions, and telemetry | GPL-licensed, free, open source, and local-first |
 
@@ -40,9 +40,9 @@ local player without owning an Apple TV or enabling network discovery.
 - Add Violet Relay to Windows **Open with** without changing existing defaults.
 - Convert a locally unsupported codec to a compatible copy when needed.
 
-### Optional Apple TV casting
+### Optional AirPlay TV casting
 
-- Discover and pair an Apple TV on the same private network.
+- Discover and pair an Apple TV or compatible smart TV on the same private network.
 - Cast the media itself rather than mirror the Windows desktop.
 - Start compatible files directly and prepare incompatible formats automatically.
 - Burn selected subtitles into the cast when the receiver cannot render them.
@@ -61,9 +61,9 @@ For local playback:
 
 - Windows 11 x64
 
-Only if you want Apple TV casting:
+Only if you want AirPlay casting:
 
-- An Apple TV on the same private network
+- An Apple TV or smart TV advertising AirPlay video on the same private network
 - Windows network discovery and private-network firewall access
 
 Python is not required for the portable release. FFmpeg is also not required
@@ -98,9 +98,9 @@ Use **URL** for a direct, unauthenticated HTTP/HTTPS media URL. Web pages,
 YouTube pages, DRM services, and URLs requiring custom authentication headers
 are intentionally rejected.
 
-### Cast to Apple TV
+### Cast to an AirPlay TV
 
-1. Put the PC and Apple TV on the same private network.
+1. Put the PC and AirPlay TV on the same private network.
 2. Open **AirPlay**, scan, and select the receiver.
 3. Complete any AirPlay or Companion PIN prompts.
 4. Before casting, use **CC** to select the subtitle track or external subtitle
@@ -112,8 +112,8 @@ it into the outgoing stream. To change subtitles during a cast, stop casting,
 choose the new track with **CC**, and start the cast again.
 
 If Windows Firewall prompts while casting a local file, allow Violet Relay on
-private networks. The Apple TV must be able to reach the temporary media server
-running on the PC.
+private networks. The AirPlay receiver must be able to reach the temporary
+media server running on the PC.
 
 Use **Stop casting** to stop the receiver. Use **Continue here** to stop the
 receiver and resume locally at the last confirmed cast position.
@@ -145,9 +145,10 @@ HDR sources can use a hardware HEVC streaming path or fall back to a cached
 1080p SDR copy. Conversion progress is cancellable, partial files are removed,
 and prepared copies are managed by a size-limited cache.
 
-A cast is shown as **Playing** only after the Apple TV reports playback and, for
-PC-hosted media, requests actual media bytes. Unexpected network loss leaves
-local playback paused and offers **Retry casting** or **Continue here**.
+A cast is shown as **Playing** only after the receiver reports playback or keeps
+the AirPlay playback session active and, for PC-hosted media, requests actual
+media bytes. Unexpected network loss leaves local playback paused and offers
+**Retry casting** or **Continue here**.
 
 ## Windows integration
 
@@ -189,6 +190,18 @@ Violet Relay uses the current AirPlay 2 queue command on tvOS 26 because the
 legacy `pyatv` URL playback path no longer works reliably there. This path has
 been tested on a physical Apple TV 4K running tvOS 26.5 with direct URLs,
 PC-hosted files, subtitles, seeking, and stop/continue flows.
+
+Smart TVs with built-in AirPlay are discovered from the receiver's advertised
+video capability, so audio-only speakers and soundbars stay out of the casting
+list. These receivers commonly omit Apple TV's separate metadata and remote
+control service. Violet Relay confirms local playback from real media requests,
+estimates progress while the AirPlay session is active, keeps stop/continue
+available, and hides controls the receiver does not expose. Receiver firmware
+varies, so built-in-TV support should still be treated as experimental. TVs
+that accept AirPlay media files but not fragmented HLS receive the original
+local file through a range-aware server, allowing large MKV and AV1/HDR files
+to start without making a complete copy. Selecting subtitles or a non-default
+audio track can still require a cached compatibility MP4.
 
 AirPlay support is based on the reverse-engineered `pyatv` project rather than
 an Apple-provided Windows SDK. Violet Relay is not affiliated with, endorsed by,

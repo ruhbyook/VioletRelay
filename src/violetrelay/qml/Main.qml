@@ -419,7 +419,11 @@ ApplicationWindow {
                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: playback.title; color: root.textSecondary; font.pixelSize: 14; elide: Text.ElideRight; width: 500; horizontalAlignment: Text.AlignHCenter }
                     Row {
                         anchors.horizontalCenter: parent.horizontalCenter; spacing: 10
-                        GlowButton { text: airplay.castState === "paused" ? "Resume" : "Pause"; onClicked: airplay.playPause() }
+                        GlowButton {
+                            visible: airplay.transportControlsAvailable
+                            text: airplay.castState === "paused" ? "Resume" : "Pause"
+                            onClicked: airplay.playPause()
+                        }
                         GlowButton { text: "Continue here"; onClicked: airplay.continueLocally() }
                         GlowButton { text: "Stop casting"; onClicked: airplay.stopCasting() }
                     }
@@ -429,7 +433,7 @@ ApplicationWindow {
                         visible: airplay.receiverVolumeAvailable
                         spacing: 10
                         Text {
-                            text: "Apple TV volume"
+                            text: "Receiver volume"
                             color: root.textSecondary
                             font.pixelSize: 12
                         }
@@ -467,7 +471,7 @@ ApplicationWindow {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: airplay.connecting
-                        text: "Waiting for Apple TV to request and start the video..."
+                        text: "Waiting for the AirPlay receiver to request and start the video..."
                         color: root.textSecondary
                         font.pixelSize: 13
                     }
@@ -552,6 +556,7 @@ ApplicationWindow {
                         spacing: 5
                         Slider {
                             id: timeline
+                            enabled: !airplay.casting || airplay.seekAvailable
                             Layout.fillWidth: true
                             Layout.preferredHeight: 24
                             from: 0
@@ -623,6 +628,7 @@ ApplicationWindow {
                                     }
                                     TransportButton {
                                         primary: true
+                                        enabled: !airplay.casting || airplay.transportControlsAvailable
                                         iconName: (airplay.casting ? airplay.castState !== "paused" : playback.playing) ? "pause" : "play"
                                         ToolTip.text: (airplay.casting ? airplay.castState !== "paused" : playback.playing) ? "Pause" : "Play"
                                         onClicked: airplay.casting ? airplay.playPause() : playback.playPause()
@@ -871,7 +877,7 @@ ApplicationWindow {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
-                Text { text: "Choose an Apple TV"; color: root.textPrimary; font.pixelSize: 19; font.weight: Font.DemiBold }
+                Text { text: "Choose an AirPlay TV"; color: root.textPrimary; font.pixelSize: 19; font.weight: Font.DemiBold }
                 Item { Layout.fillWidth: true }
                 GlowButton { text: airplay.scanning ? "Scanning…" : "Rescan"; enabled: !airplay.scanning; onClicked: airplay.scan() }
             }
@@ -919,7 +925,7 @@ ApplicationWindow {
                 }
                 footer: Item {
                     width: deviceView.width; height: deviceView.count === 0 ? 150 : 10
-                    Text { anchors.centerIn: parent; visible: deviceView.count === 0 && !airplay.scanning; text: "No Apple TV found\nCheck Wi-Fi and Windows Firewall"; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
+                    Text { anchors.centerIn: parent; visible: deviceView.count === 0 && !airplay.scanning; text: "No AirPlay TV found\nCheck Wi-Fi and Windows Firewall"; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
                 }
             }
         }
@@ -1344,7 +1350,7 @@ ApplicationWindow {
         width: 520
         modal: true
         closePolicy: Popup.NoAutoClose
-        title: "Apple TV connection lost"
+        title: "AirPlay connection lost"
         property string message: ""
         background: Rectangle { radius: 18; color: "#F2181D2B"; border.color: "#E7B86A" }
         contentItem: ColumnLayout {
@@ -1358,7 +1364,7 @@ ApplicationWindow {
             }
             Text {
                 Layout.fillWidth: true
-                text: "Local playback is still paused at the last confirmed Apple TV position."
+                text: "Local playback is still paused at the last confirmed AirPlay position."
                 color: root.textSecondary
                 wrapMode: Text.Wrap
                 font.pixelSize: 12
@@ -1520,9 +1526,33 @@ ApplicationWindow {
 
     Shortcut { sequence: "Ctrl+O"; onActivated: fileDialog.open() }
     Shortcut { sequence: "Ctrl+L"; onActivated: urlDialog.open() }
-    Shortcut { sequence: "Space"; onActivated: airplay.casting ? airplay.playPause() : playback.playPause() }
-    Shortcut { sequence: "Right"; onActivated: airplay.casting ? airplay.seek(airplay.castPosition + 10) : playback.seek(playback.position + 10000) }
-    Shortcut { sequence: "Left"; onActivated: airplay.casting ? airplay.seek(Math.max(0, airplay.castPosition - 10)) : playback.seek(Math.max(0, playback.position - 10000)) }
+    Shortcut {
+        sequence: "Space"
+        onActivated: {
+            if (airplay.casting && airplay.transportControlsAvailable)
+                airplay.playPause()
+            else if (!airplay.casting)
+                playback.playPause()
+        }
+    }
+    Shortcut {
+        sequence: "Right"
+        onActivated: {
+            if (airplay.casting && airplay.seekAvailable)
+                airplay.seek(airplay.castPosition + 10)
+            else if (!airplay.casting)
+                playback.seek(playback.position + 10000)
+        }
+    }
+    Shortcut {
+        sequence: "Left"
+        onActivated: {
+            if (airplay.casting && airplay.seekAvailable)
+                airplay.seek(Math.max(0, airplay.castPosition - 10))
+            else if (!airplay.casting)
+                playback.seek(Math.max(0, playback.position - 10000))
+        }
+    }
     Shortcut { sequence: "F11"; onActivated: root.toggleVideoFullscreen() }
     Shortcut { sequence: "Alt+Enter"; onActivated: root.toggleVideoFullscreen() }
     Shortcut { sequence: "Escape"; enabled: root.videoFullscreen; onActivated: root.toggleVideoFullscreen() }

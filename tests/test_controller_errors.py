@@ -1,4 +1,5 @@
 import concurrent.futures
+from types import SimpleNamespace
 
 from violetrelay.controllers.airplay import AirPlayController
 from violetrelay.models import QueueModel
@@ -37,6 +38,18 @@ class Playback:
 
 
 class Service:
+    def __init__(self):
+        self.replace_calls = []
+        self.start_calls = []
+
+    def start_cast(self, identifier, source, position, duration):
+        self.start_calls.append((identifier, source, position, duration))
+
+        async def start():
+            pass
+
+        return start()
+
     async def stop_cast(self):
         pass
 
@@ -45,6 +58,14 @@ class Service:
 
     async def command(self, *_args):
         pass
+
+    def replace_stream(self, source, position, duration):
+        self.replace_calls.append((source, position, duration))
+
+        async def replace():
+            pass
+
+        return replace()
 
 
 class Runtime:
@@ -169,25 +190,122 @@ def test_stream_status_is_mapped_to_absolute_movie_timeline(qtbot, tmp_path):
     instance.close()
 
 
-def test_stream_seek_stops_then_requests_new_absolute_start(qtbot, tmp_path):
-    instance, playback, runtime = controller(tmp_path, Runtime(pending=True))
+def test_absolute_stream_status_is_not_offset_twice(qtbot, tmp_path):
+    instance, _playback, _runtime = controller(tmp_path)
+    instance._casting = True
+    instance._active_stream_session = Session()
+    instance._stream_start_seconds = 3_600.0
+    instance._stream_duration_seconds = 7_000
+    instance._stream_absolute_timeline = True
+
+    instance._on_status(CastStatus("playing", 3_612, 7_000))
+
+    assert instance.castPosition == 3_612
+    assert instance.castDuration == 7_000
+    instance.close()
+
+
+def test_absolute_stream_start_passes_movie_position_and_full_duration(
+    qtbot, tmp_path
+):
+    instance, _playback, runtime = controller(tmp_path)
+    instance._cast_device_id = "living-room"
     session = Session()
+    prepared = SimpleNamespace(
+        source=str(tmp_path / "index.m3u8"),
+        streaming=True,
+        stream_session=session,
+        start_position_seconds=225.5,
+        absolute_timeline=True,
+        media_info=SimpleNamespace(duration_seconds=7_654.0),
+    )
+
+    instance._on_prepared(prepared)
+
+    assert runtime.service.start_calls == [
+        ("living-room", prepared.source, 225.5, 7_654.0)
+    ]
+    instance.close()
+
+
+def test_stream_seek_replaces_inside_active_cast_session(qtbot, tmp_path):
+    instance, playback, runtime = controller(tmp_path, Runtime(pending=True))
+    old_session = Session()
+    new_session = Session()
+    instance.queue.addFiles([str(tmp_path / "movie.mkv")])
+    instance.preparer = SimpleNamespace(
+        prepare=lambda *_args, **_kwargs: SimpleNamespace(
+            source=str(tmp_path / "new" / "index.m3u8"),
+            streaming=True,
+            stream_session=new_session,
+            start_position_seconds=3_600.0,
+            absolute_timeline=True,
+            media_info=SimpleNamespace(duration_seconds=7_000.0),
+        )
+    )
     instance._casting = True
     instance._cast_position = 60
     instance._cast_duration = 7_000
     instance._stream_duration_seconds = 7_000
-    instance._active_stream_session = session
+    instance._active_stream_session = old_session
     instance._last_cast_row = -1
 
     instance.seek(3_600)
 
     assert instance.preparing
-    assert not instance.casting
-    assert len(runtime.submissions) == 1
+    assert instance.casting
+    assert instance._active_stream_session is old_session
+    qtbot.waitUntil(lambda: len(runtime.submissions) == 1)
+    assert runtime.service.replace_calls == [
+        (str(tmp_path / "new" / "index.m3u8"), 3_600, 7_000.0)
+    ]
+    assert not old_session.stopped
     runtime.submissions[0].set_result(None)
     qtbot.waitUntil(lambda: playback.seeks == [3_600_000])
-    qtbot.waitUntil(lambda: session.stopped)
-    assert instance._requested_start_position_seconds == 3_600.0
+    qtbot.waitUntil(lambda: old_session.stopped)
+    assert instance._active_stream_session is new_session
+    assert instance.casting
+    assert not instance.preparing
+    assert instance.castPosition == 3_600
+    assert instance.castDuration == 7_000
+    assert not new_session.stopped
+    instance.close()
+
+
+def test_stream_seek_rejection_keeps_old_cast_playing(qtbot, tmp_path):
+    instance, playback, runtime = controller(tmp_path, Runtime(pending=True))
+    old_session = Session()
+    new_session = Session()
+    instance.queue.addFiles([str(tmp_path / "movie.mkv")])
+    instance.preparer = SimpleNamespace(
+        prepare=lambda *_args, **_kwargs: SimpleNamespace(
+            source=str(tmp_path / "new" / "index.m3u8"),
+            streaming=True,
+            stream_session=new_session,
+            start_position_seconds=3_600.0,
+            absolute_timeline=True,
+            media_info=SimpleNamespace(duration_seconds=7_000.0),
+        )
+    )
+    instance._casting = True
+    instance._cast_position = 60
+    instance._cast_duration = 7_000
+    instance._stream_duration_seconds = 7_000
+    instance._active_stream_session = old_session
+
+    instance.seek(3_600)
+    qtbot.waitUntil(lambda: len(runtime.submissions) == 1)
+    error = RuntimeError("receiver rejected replacement")
+    error.cast_still_active = True
+    with qtbot.waitSignal(instance.errorOccurred):
+        runtime.submissions[0].set_exception(error)
+
+    qtbot.waitUntil(lambda: new_session.stopped)
+    assert instance._active_stream_session is old_session
+    assert not old_session.stopped
+    assert instance.casting
+    assert not instance.preparing
+    assert playback.player.play_calls == 0
     instance.close()
 
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
+import math
 import os
 import shutil
 import subprocess
 import threading
-import math
 import time
 import uuid
 from dataclasses import dataclass
@@ -30,6 +31,10 @@ from .media import (
 
 
 ProgressCallback = Callable[[float, str], None]
+HLS_SEGMENT_SECONDS = 4.0
+COPY_TIMELINE_TIMEOUT_SECONDS = 90.0
+COPY_TIMELINE_CACHE_LIMIT = 16
+
 
 @dataclass(frozen=True, slots=True)
 class PreparedMedia:
@@ -40,6 +45,14 @@ class PreparedMedia:
     streaming: bool = False
     stream_session: "HlsSession | None" = None
     start_position_seconds: float = 0.0
+    absolute_timeline: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class HlsTimeline:
+    segment_durations: tuple[float, ...]
+    first_real_segment: int
+    producer_start_seconds: float
 
 
 class ConversionCancelled(RuntimeError):
@@ -110,7 +123,7 @@ def streaming_buffer_progress(
 
 
 class HlsSession:
-    """A running FFmpeg process producing an event-style HLS presentation."""
+    """A running FFmpeg process producing an incremental HLS presentation."""
 
     def __init__(
         self,
@@ -118,9 +131,11 @@ class HlsSession:
         command: list[str],
         duration_seconds: float,
         progress: ProgressCallback,
+        producer_manifest_name: str = "index.m3u8",
     ) -> None:
         self.directory = directory
         self.manifest = directory / "index.m3u8"
+        self.producer_manifest = directory / producer_manifest_name
         self.duration_seconds = duration_seconds
         self.progress = progress
         self.stderr_lines: list[str] = []
@@ -198,9 +213,9 @@ class HlsSession:
             if cancel is not None and cancel.is_set():
                 self.stop()
                 raise ConversionCancelled("Cast preparation cancelled")
-            if self.manifest.exists() and (self.directory / "init.mp4").exists():
+            if self.producer_manifest.exists() and (self.directory / "init.mp4").exists():
                 try:
-                    playlist = self.manifest.read_text(encoding="utf-8")
+                    playlist = self.producer_manifest.read_text(encoding="utf-8")
                     if playlist.count("#EXTINF:") >= segments or (
                         "#EXT-X-ENDLIST" in playlist and "#EXTINF:" in playlist
                     ):
@@ -211,6 +226,91 @@ class HlsSession:
                 raise RuntimeError(self.error or "The streaming encoder stopped before producing a playable buffer")
             time.sleep(0.2)
         raise TimeoutError("Timed out while building the initial Apple TV streaming buffer")
+
+    def publish_vod_timeline(
+        self,
+        duration_seconds: float,
+        first_real_segment: int,
+        segment_seconds: float = HLS_SEGMENT_SECONDS,
+    ) -> None:
+        """Publish a complete movie timeline while FFmpeg fills future segments."""
+        if (
+            not math.isfinite(duration_seconds)
+            or duration_seconds <= 0
+            or not math.isfinite(segment_seconds)
+            or segment_seconds <= 0
+        ):
+            raise ValueError("A finite movie duration is required for VOD HLS")
+
+        segment_count = max(1, math.ceil(duration_seconds / segment_seconds))
+        segment_durations = tuple(
+            min(
+                segment_seconds,
+                max(0.001, duration_seconds - index * segment_seconds),
+            )
+            for index in range(segment_count)
+        )
+        self.publish_vod_segments(segment_durations, first_real_segment)
+
+    def publish_vod_segments(
+        self,
+        segment_durations: tuple[float, ...],
+        first_real_segment: int,
+        real_segment_start_number: int | None = None,
+    ) -> None:
+        """Publish an immutable VOD playlist from known segment durations."""
+        if not segment_durations or any(
+            not math.isfinite(duration) or duration <= 0
+            for duration in segment_durations
+        ):
+            raise ValueError("VOD HLS requires finite positive segment durations")
+        first_real_segment = max(
+            0,
+            min(first_real_segment, len(segment_durations) - 1),
+        )
+        lines = [
+            "#EXTM3U",
+            "#EXT-X-VERSION:7",
+            f"#EXT-X-TARGETDURATION:{math.ceil(max(segment_durations))}",
+            "#EXT-X-MEDIA-SEQUENCE:0",
+            "#EXT-X-PLAYLIST-TYPE:VOD",
+            "#EXT-X-INDEPENDENT-SEGMENTS",
+            '#EXT-X-MAP:URI="init.mp4"',
+        ]
+        for index, segment_duration in enumerate(segment_durations):
+            if index == first_real_segment and first_real_segment > 0:
+                # The replacement encoder starts its timestamps near zero. The
+                # TV maps that new timestamp sequence onto this segment's
+                # absolute movie position at the discontinuity boundary.
+                lines.extend(
+                    [
+                        "#EXT-X-DISCONTINUITY",
+                        '#EXT-X-MAP:URI="init.mp4"',
+                    ]
+                )
+            if index < first_real_segment and real_segment_start_number is not None:
+                # These entries exist only to give a replacement stream its
+                # absolute movie position.  Keeping their names separate from
+                # the producer's zero-based files avoids URI collisions.
+                segment_uri = f"missing_{index:06d}.m4s"
+            else:
+                segment_number = (
+                    index
+                    if real_segment_start_number is None
+                    else real_segment_start_number + index - first_real_segment
+                )
+                segment_uri = f"segment_{segment_number:06d}.m4s"
+            lines.extend(
+                [
+                    f"#EXTINF:{segment_duration:.6f},",
+                    segment_uri,
+                ]
+            )
+        lines.append("#EXT-X-ENDLIST")
+
+        pending = self.manifest.with_name(f".{self.manifest.name}.pending")
+        pending.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        pending.replace(self.manifest)
 
     def stop(self, remove_files: bool = True) -> None:
         try:
@@ -242,6 +342,10 @@ class MediaPreparer:
         self.log = logging.getLogger("violetrelay.converter")
         self._backend_probe: dict[EncoderBackend, bool] = {}
         self._backend_probe_lock = threading.Lock()
+        self._copy_timeline_cache: dict[
+            tuple[str, int, int, float, int], tuple[float, ...]
+        ] = {}
+        self._copy_timeline_cache_lock = threading.Lock()
 
     @staticmethod
     def _h264_encoder(backend: EncoderBackend) -> str:
@@ -316,6 +420,7 @@ class MediaPreparer:
         cancel: threading.Event | None = None,
         start_position_seconds: float = 0.0,
         audio_stream: int = -1,
+        allow_hls_playback: bool = True,
     ) -> PreparedMedia:
         progress = progress or (lambda _value, _status: None)
         cancel = cancel or threading.Event()
@@ -325,6 +430,10 @@ class MediaPreparer:
         if is_url:
             source = validate_media_url(source)
             if is_hls_url(source):
+                if not allow_hls_playback:
+                    raise RuntimeError(
+                        "This built-in AirPlay TV accepts media files but not HLS playlists"
+                    )
                 return PreparedMedia(source, PreparationKind.DIRECT, False, None)
             progress(0.0, "Checking direct media URL")
             try:
@@ -341,6 +450,10 @@ class MediaPreparer:
                         "YouTube, streaming-service pages, and DRM are unsupported."
                     )
                 if remote_identity.is_hls:
+                    if not allow_hls_playback:
+                        raise RuntimeError(
+                            "This built-in AirPlay TV accepts media files but not HLS playlists"
+                        )
                     return PreparedMedia(
                         source, PreparationKind.DIRECT, False, None
                     )
@@ -357,17 +470,37 @@ class MediaPreparer:
             else default_audio_stream_index(info)
         )
         self._validate_probed_tracks(info, subtitle, resolved_audio)
+        if (
+            not allow_hls_playback
+            and not is_url
+            and not subtitle
+            and resolved_audio == default_audio_stream_index(info)
+        ):
+            # Built-in TV receivers use their native media pipeline and can
+            # often decode formats beyond Apple TV's H.264/HEVC MP4 profile.
+            # Serve the original first so large AV1/HDR MKVs start instantly.
+            progress(1.0, "Ready to cast original file")
+            return PreparedMedia(
+                source,
+                PreparationKind.DIRECT,
+                False,
+                info,
+            )
         if is_url and "hls" in {
             part.strip().casefold()
             for part in info.format_name.split(",")
         }:
+            if not allow_hls_playback:
+                raise RuntimeError(
+                    "This built-in AirPlay TV accepts media files but not HLS playlists"
+                )
             progress(1.0, "Ready to cast")
             return PreparedMedia(
                 source, PreparationKind.DIRECT, False, info
             )
         decision = classify_media(info, source, subtitle, resolved_audio)
         if decision.kind == PreparationKind.DIRECT:
-            if not is_url:
+            if not is_url and allow_hls_playback:
                 return self._local_file_stream(
                     Path(source),
                     decision.kind,
@@ -410,7 +543,11 @@ class MediaPreparer:
         # can copy them directly from MKV/AVI/alternate-track MP4 into the
         # fragmented HLS presentation Apple TV consumes. This turns a
         # multi-minute remux into only the initial streaming buffer.
-        if decision.kind == PreparationKind.REMUX and not is_url:
+        if (
+            decision.kind == PreparationKind.REMUX
+            and not is_url
+            and allow_hls_playback
+        ):
             return self._local_file_stream(
                 Path(source),
                 decision.kind,
@@ -433,6 +570,11 @@ class MediaPreparer:
             ),
         )
         if cached := self.cache.get(key):
+            if not allow_hls_playback:
+                progress(1.0, "Using prepared AirPlay TV copy")
+                return PreparedMedia(
+                    str(cached), decision.kind, True, info
+                )
             return self._local_file_stream(
                 cached,
                 decision.kind,
@@ -447,7 +589,7 @@ class MediaPreparer:
         # before AirPlay could start. Produce the same H.264/AAC conversion as
         # paced fragmented HLS instead, so Apple TV can begin after the first
         # two segments while the GPU keeps encoding slightly ahead of playback.
-        if subtitle and not is_url:
+        if subtitle and not is_url and allow_hls_playback:
             prepared_stream = self._prepare_transcode_stream(
                 source,
                 info,
@@ -461,7 +603,8 @@ class MediaPreparer:
                 return prepared_stream
 
         if (
-            info.hdr
+            allow_hls_playback
+            and info.hdr
             and not subtitle
             and info.video is not None
             and info.video.codec_name.lower() in {"av1", "hevc", "h264"}
@@ -487,7 +630,7 @@ class MediaPreparer:
                     source, partial, info, resolved_audio, progress, cancel
                 )
             else:
-                progress(0.0, "Converting for Apple TV")
+                progress(0.0, "Converting for AirPlay")
                 self._transcode_with_fallback(
                     source,
                     partial,
@@ -501,6 +644,11 @@ class MediaPreparer:
                 raise ConversionCancelled("Conversion cancelled")
             self._publish_partial(partial, output)
             self.cache.enforce_limit({output})
+            if not allow_hls_playback:
+                progress(1.0, "AirPlay TV compatibility copy ready")
+                return PreparedMedia(
+                    str(output), decision.kind, False, info
+                )
             return self._local_file_stream(
                 output,
                 decision.kind,
@@ -744,6 +892,13 @@ class MediaPreparer:
                     backend,
                 )
                 session.wait_until_ready(cancel=cancel)
+                first_real_segment = math.floor(
+                    max(0.0, start_position_seconds) / HLS_SEGMENT_SECONDS
+                )
+                session.publish_vod_timeline(
+                    info.duration_seconds,
+                    first_real_segment,
+                )
                 session.progress = lambda _value, _status: None
                 progress(1.0, f"{label} HDR stream ready")
                 return PreparedMedia(
@@ -754,6 +909,7 @@ class MediaPreparer:
                     streaming=True,
                     stream_session=session,
                     start_position_seconds=start_position_seconds,
+                    absolute_timeline=True,
                 )
             except ConversionCancelled:
                 if session is not None:
@@ -763,9 +919,11 @@ class MediaPreparer:
                 if session is not None:
                     session.stop()
                 raise RuntimeError(f"Unable to start HDR streaming: {error}") from error
-            except (RuntimeError, TimeoutError) as error:
+            except (RuntimeError, TimeoutError, ValueError) as error:
                 if session is not None:
                     session.stop()
+                if isinstance(error, ValueError):
+                    raise
                 if isinstance(error, RuntimeError) and not (
                     self._is_hardware_failure(error)
                     or "streaming encoder stopped" in str(error).casefold()
@@ -815,6 +973,13 @@ class MediaPreparer:
                         accelerated_input,
                     )
                     session.wait_until_ready(cancel=cancel)
+                    first_real_segment = math.floor(
+                        max(0.0, start_position_seconds) / HLS_SEGMENT_SECONDS
+                    )
+                    session.publish_vod_timeline(
+                        info.duration_seconds,
+                        first_real_segment,
+                    )
                     session.progress = lambda _value, _status: None
                     progress(1.0, f"{label} subtitle stream ready")
                     return PreparedMedia(
@@ -825,6 +990,7 @@ class MediaPreparer:
                         streaming=True,
                         stream_session=session,
                         start_position_seconds=start_position_seconds,
+                        absolute_timeline=True,
                     )
                 except ConversionCancelled:
                     if session is not None:
@@ -836,9 +1002,11 @@ class MediaPreparer:
                     raise RuntimeError(
                         f"Unable to start subtitle streaming: {error}"
                     ) from error
-                except (RuntimeError, TimeoutError) as error:
+                except (RuntimeError, TimeoutError, ValueError) as error:
                     if session is not None:
                         session.stop()
+                    if isinstance(error, ValueError):
+                        raise
                     if (
                         accelerated_input
                         and self._is_nvidia_subtitle_pipeline_failure(error)
@@ -876,6 +1044,350 @@ class MediaPreparer:
         )
         return None
 
+    @staticmethod
+    def _copy_seek_seconds(
+        start_position_seconds: float,
+        duration_seconds: float,
+    ) -> float:
+        """Match the millisecond precision used by the AirPlay queue command."""
+        target = max(0.0, start_position_seconds)
+        if math.isfinite(duration_seconds) and duration_seconds > 0:
+            target = min(target, max(0.0, duration_seconds - 0.001))
+        return math.floor(target * 1000.0) / 1000.0
+
+    def _probe_copy_keyframe_start(
+        self,
+        source: Path,
+        seek_seconds: float,
+        cancel: threading.Event,
+    ) -> float:
+        """Return the source time represented by the copy stream's first keyframe."""
+        if cancel.is_set():
+            raise ConversionCancelled("Cast preparation cancelled")
+        _, ffprobe = self.locator.require()
+        command = [
+            str(ffprobe),
+            "-v",
+            "error",
+            # A leading + makes the interval relative to format.start_time,
+            # exactly like FFmpeg's default input-side -ss behavior.
+            "-read_intervals",
+            f"+{seek_seconds:.3f}%+#1",
+            "-select_streams",
+            "v:0",
+            "-show_packets",
+            "-show_entries",
+            "packet=pts_time,flags:format=start_time",
+            "-of",
+            "json",
+            str(source.resolve()),
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except subprocess.TimeoutExpired as error:
+            raise TimeoutError("Timed out while locating the seek keyframe") from error
+        except OSError as error:
+            raise RuntimeError(f"Unable to start FFprobe: {error}") from error
+        if cancel.is_set():
+            raise ConversionCancelled("Cast preparation cancelled")
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip() or "Unable to locate the seek keyframe"
+            )
+        try:
+            payload = json.loads(result.stdout)
+            media_format = payload.get("format", {})
+            start_time = float(media_format.get("start_time", 0) or 0)
+            packets = payload.get("packets", [])
+            packet = next(
+                (
+                    item
+                    for item in packets
+                    if isinstance(item, dict) and "K" in str(item.get("flags", ""))
+                ),
+                packets[0] if packets else None,
+            )
+            if not isinstance(packet, dict):
+                raise ValueError
+            keyframe_seconds = float(packet["pts_time"]) - start_time
+            if not math.isfinite(keyframe_seconds):
+                raise ValueError
+        except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise RuntimeError("FFprobe returned no usable seek keyframe") from error
+        # The receiver truncates Start-Position to milliseconds.  Never place
+        # the first real fragment after that target or it would select a
+        # synthetic, intentionally absent prefix fragment.
+        return min(seek_seconds, max(0.0, keyframe_seconds))
+
+    @staticmethod
+    def _copy_timeline_prefix(anchor_seconds: float) -> tuple[float, ...]:
+        if not math.isfinite(anchor_seconds) or anchor_seconds < 0.001:
+            return ()
+        full_segments = int(anchor_seconds // HLS_SEGMENT_SECONDS)
+        prefix = [HLS_SEGMENT_SECONDS] * full_segments
+        remainder = anchor_seconds - full_segments * HLS_SEGMENT_SECONDS
+        if remainder > 0:
+            # Avoid a nearly-zero metadata fragment at floating-point
+            # boundaries by folding it into the preceding entry.
+            if prefix and remainder < 0.001:
+                prefix[-1] += remainder
+            else:
+                prefix.append(remainder)
+        return tuple(prefix)
+
+    def _copy_timeline_cache_key(
+        self,
+        source: Path,
+        seek_seconds: float,
+        audio_stream: int,
+    ) -> tuple[str, int, int, float, int]:
+        resolved = source.resolve()
+        stat = resolved.stat()
+        return (
+            os.path.normcase(str(resolved)),
+            stat.st_size,
+            stat.st_mtime_ns,
+            seek_seconds,
+            audio_stream,
+        )
+
+    @staticmethod
+    def _stop_probe_process(process: subprocess.Popen[str]) -> None:
+        try:
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+        except OSError:
+            pass
+
+    def _probe_copy_hls_durations(
+        self,
+        source: Path,
+        info: MediaInfo,
+        seek_seconds: float,
+        audio_stream: int,
+        directory: Path,
+        cancel: threading.Event,
+    ) -> tuple[float, ...]:
+        """Run an unpaced media-to-null mux to obtain exact copy-HLS EXTINFs."""
+        cache_key = self._copy_timeline_cache_key(
+            source,
+            seek_seconds,
+            audio_stream,
+        )
+        with self._copy_timeline_cache_lock:
+            if cached := self._copy_timeline_cache.get(cache_key):
+                return cached
+
+        ffmpeg, _ = self.locator.require()
+        manifest = directory / ".timeline-probe.m3u8"
+        null_device = "NUL" if os.name == "nt" else os.devnull
+        command = [
+            str(ffmpeg),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+        ]
+        if seek_seconds > 0:
+            command.extend(["-ss", f"{seek_seconds:.3f}"])
+        command.extend(
+            [
+                "-i",
+                str(source.resolve()),
+                "-map",
+                "0:v:0",
+                "-map",
+                self._audio_map(audio_stream),
+                "-c",
+                "copy",
+                "-sn",
+                "-dn",
+                "-avoid_negative_ts",
+                "make_zero",
+                *(
+                    ["-tag:v", "hvc1"]
+                    if info.video is not None
+                    and info.video.codec_name.casefold() == "hevc"
+                    else []
+                ),
+                "-f",
+                "hls",
+                "-hls_time",
+                f"{HLS_SEGMENT_SECONDS:g}",
+                "-hls_playlist_type",
+                "vod",
+                "-hls_segment_type",
+                "fmp4",
+                "-hls_flags",
+                "independent_segments",
+                # With strftime enabled, FFmpeg accepts one null-device path
+                # for every media fragment and creates only the small manifest.
+                "-strftime",
+                "1",
+                "-hls_fmp4_init_filename",
+                null_device,
+                "-hls_segment_filename",
+                null_device,
+                str(manifest),
+            ]
+        )
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=str(directory),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except OSError as error:
+            raise RuntimeError(f"Unable to start the HLS timeline probe: {error}") from error
+
+        deadline = time.monotonic() + COPY_TIMELINE_TIMEOUT_SECONDS
+        stderr = ""
+        while True:
+            try:
+                _, stderr = process.communicate(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                if cancel.is_set():
+                    self._stop_probe_process(process)
+                    raise ConversionCancelled("Cast preparation cancelled")
+                if time.monotonic() >= deadline:
+                    self._stop_probe_process(process)
+                    raise TimeoutError("Timed out while mapping the movie timeline")
+        if process.returncode != 0:
+            raise RuntimeError(stderr.strip() or "Unable to map the movie timeline")
+        if cancel.is_set():
+            raise ConversionCancelled("Cast preparation cancelled")
+
+        try:
+            playlist = manifest.read_text(encoding="utf-8")
+            if "#EXT-X-ENDLIST" not in playlist:
+                raise ValueError
+            durations = tuple(
+                float(line.partition(":")[2].partition(",")[0])
+                for line in playlist.splitlines()
+                if line.startswith("#EXTINF:")
+            )
+            if not durations or any(
+                not math.isfinite(duration) or duration <= 0
+                for duration in durations
+            ):
+                raise ValueError
+        except (OSError, ValueError) as error:
+            raise RuntimeError("FFmpeg returned an invalid movie timeline") from error
+        finally:
+            try:
+                manifest.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        with self._copy_timeline_cache_lock:
+            if len(self._copy_timeline_cache) >= COPY_TIMELINE_CACHE_LIMIT:
+                self._copy_timeline_cache.pop(next(iter(self._copy_timeline_cache)))
+            self._copy_timeline_cache[cache_key] = durations
+        return durations
+
+    def _probe_first_hls_video_pts(
+        self,
+        session: HlsSession,
+        cancel: threading.Event,
+    ) -> float:
+        """Measure the B-frame offset applied to the producer's first fragment."""
+        if cancel.is_set():
+            raise ConversionCancelled("Cast preparation cancelled")
+        _, ffprobe = self.locator.require()
+        try:
+            result = subprocess.run(
+                [
+                    str(ffprobe),
+                    "-v",
+                    "error",
+                    "-read_intervals",
+                    "%+#1",
+                    "-select_streams",
+                    "v:0",
+                    "-show_packets",
+                    "-show_entries",
+                    "packet=pts_time",
+                    "-of",
+                    "json",
+                    str(session.producer_manifest),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise RuntimeError("Unable to inspect the first HLS fragment") from error
+        if cancel.is_set():
+            raise ConversionCancelled("Cast preparation cancelled")
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip() or "Unable to inspect the first HLS fragment"
+            )
+        try:
+            payload = json.loads(result.stdout)
+            pts_seconds = float(payload["packets"][0]["pts_time"])
+            if not math.isfinite(pts_seconds):
+                raise ValueError
+            return max(0.0, pts_seconds)
+        except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise RuntimeError("FFprobe returned no HLS video timestamp") from error
+
+    @classmethod
+    def _build_copy_hls_timeline(
+        cls,
+        anchor_seconds: float,
+        real_segment_durations: tuple[float, ...],
+    ) -> HlsTimeline:
+        prefix = cls._copy_timeline_prefix(anchor_seconds)
+        return HlsTimeline(
+            prefix + real_segment_durations,
+            len(prefix),
+            anchor_seconds,
+        )
+
+    @staticmethod
+    def _resolve_copy_timeline_anchor(
+        seek_seconds: float,
+        keyframe_start: float | None,
+        first_video_pts: float,
+        duration_seconds: float,
+        real_segment_durations: tuple[float, ...],
+    ) -> float:
+        if keyframe_start is None:
+            inferred = duration_seconds - sum(real_segment_durations)
+            if duration_seconds > 0 and math.isfinite(inferred):
+                # The shadow VOD duration normally reveals the source anchor
+                # even when the quick keyframe query cannot read the container.
+                return min(seek_seconds, max(0.0, inferred))
+            keyframe_start = seek_seconds
+        return min(
+            seek_seconds,
+            max(0.0, keyframe_start - first_video_pts),
+        )
+
     def _local_file_stream(
         self,
         source: Path,
@@ -902,14 +1414,68 @@ class MediaPreparer:
         progress(0.0, "Building Apple TV streaming buffer")
         session: HlsSession | None = None
         try:
+            seek_seconds = self._copy_seek_seconds(
+                start_position_seconds,
+                info.duration_seconds,
+            )
             session = self._start_copy_hls(
                 source,
                 info,
                 progress,
-                start_position_seconds,
+                seek_seconds,
                 audio_stream,
             )
+            try:
+                keyframe_start = self._probe_copy_keyframe_start(
+                    source,
+                    seek_seconds,
+                    cancel,
+                )
+            except ConversionCancelled:
+                raise
+            except (OSError, RuntimeError, TimeoutError, ValueError) as error:
+                self.log.warning(
+                    "Unable to locate the copy-stream keyframe; inferring it from "
+                    "the complete timeline: %s",
+                    error,
+                )
+                keyframe_start = None
+            real_durations = self._probe_copy_hls_durations(
+                source,
+                info,
+                seek_seconds,
+                audio_stream,
+                session.directory,
+                cancel,
+            )
             session.wait_until_ready(cancel=cancel)
+            try:
+                first_video_pts = self._probe_first_hls_video_pts(session, cancel)
+            except ConversionCancelled:
+                raise
+            except (OSError, RuntimeError, TimeoutError, ValueError) as error:
+                self.log.warning(
+                    "Unable to measure the copy-stream timestamp offset; using the "
+                    "source keyframe: %s",
+                    error,
+                )
+                first_video_pts = 0.0
+            anchor_seconds = self._resolve_copy_timeline_anchor(
+                seek_seconds,
+                keyframe_start,
+                first_video_pts,
+                info.duration_seconds,
+                real_durations,
+            )
+            timeline = self._build_copy_hls_timeline(
+                anchor_seconds,
+                real_durations,
+            )
+            session.publish_vod_segments(
+                timeline.segment_durations,
+                timeline.first_real_segment,
+                real_segment_start_number=0,
+            )
             session.progress = lambda _value, _status: None
             progress(1.0, "Apple TV streaming buffer ready")
             return PreparedMedia(
@@ -920,6 +1486,7 @@ class MediaPreparer:
                 streaming=True,
                 stream_session=session,
                 start_position_seconds=start_position_seconds,
+                absolute_timeline=True,
             )
         except Exception:
             if session is not None:
@@ -978,7 +1545,7 @@ class MediaPreparer:
                 "-f",
                 "hls",
                 "-hls_time",
-                "4",
+                f"{HLS_SEGMENT_SECONDS:g}",
                 "-hls_playlist_type",
                 "event",
                 "-hls_segment_type",
@@ -992,12 +1559,18 @@ class MediaPreparer:
                 "-progress",
                 "pipe:1",
                 "-nostats",
-                str(directory / "index.m3u8"),
+                str(directory / "producer.m3u8"),
             ]
         )
         remaining_duration = max(0.0, info.duration_seconds - start_position_seconds)
         try:
-            return HlsSession(directory, command, remaining_duration, progress)
+            return HlsSession(
+                directory,
+                command,
+                remaining_duration,
+                progress,
+                producer_manifest_name="producer.m3u8",
+            )
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
@@ -1097,6 +1670,10 @@ class MediaPreparer:
         ffmpeg, _ = self.locator.require()
         if info.video is None:
             raise RuntimeError("HDR stream has no video track")
+        first_real_segment = math.floor(
+            max(0.0, start_position_seconds) / HLS_SEGMENT_SECONDS
+        )
+        aligned_start_seconds = first_real_segment * HLS_SEGMENT_SECONDS
         input_options, filter_options, encoder_options = self._hdr_video_options(
             backend, info.video.codec_name
         )
@@ -1120,8 +1697,8 @@ class MediaPreparer:
             "-readrate_catchup",
             "1.5",
         ]
-        if start_position_seconds > 0:
-            command.extend(["-ss", f"{start_position_seconds:.3f}"])
+        if aligned_start_seconds > 0:
+            command.extend(["-ss", f"{aligned_start_seconds:.3f}"])
         command.extend([
             *input_options,
             "-i", source,
@@ -1138,19 +1715,26 @@ class MediaPreparer:
             "-b:a", "256k",
             "-ac", "2",
             "-f", "hls",
-            "-hls_time", "4",
+            "-hls_time", f"{HLS_SEGMENT_SECONDS:g}",
             "-hls_playlist_type", "event",
             "-hls_segment_type", "fmp4",
             "-hls_flags", "independent_segments+temp_file",
             "-hls_fmp4_init_filename", "init.mp4",
+            "-start_number", str(first_real_segment),
             "-hls_segment_filename", str(segment_pattern),
             "-progress", "pipe:1",
             "-nostats",
-            str(directory / "index.m3u8"),
+            str(directory / "producer.m3u8"),
         ])
-        remaining_duration = max(0.0, info.duration_seconds - start_position_seconds)
+        remaining_duration = max(0.0, info.duration_seconds - aligned_start_seconds)
         try:
-            return HlsSession(directory, command, remaining_duration, progress)
+            return HlsSession(
+                directory,
+                command,
+                remaining_duration,
+                progress,
+                producer_manifest_name="producer.m3u8",
+            )
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
@@ -1167,6 +1751,10 @@ class MediaPreparer:
         accelerated_input: bool = True,
     ) -> HlsSession:
         ffmpeg, _ = self.locator.require()
+        first_real_segment = math.floor(
+            max(0.0, start_position_seconds) / HLS_SEGMENT_SECONDS
+        )
+        aligned_start_seconds = first_real_segment * HLS_SEGMENT_SECONDS
         directory = (self.cache.directory / f"hls-{uuid.uuid4().hex}").resolve()
         segment_pattern = directory / "segment_%06d.m4s"
         input_options: list[str] = []
@@ -1177,7 +1765,7 @@ class MediaPreparer:
             accelerated_filters = self._nvidia_subtitle_filter_arguments(
                 info,
                 subtitle,
-                start_position_seconds,
+                aligned_start_seconds,
             )
         if accelerated_filters is not None:
             input_options, filter_arguments = accelerated_filters
@@ -1186,14 +1774,14 @@ class MediaPreparer:
             extra_inputs, filter_arguments = self._filter_arguments(
                 info,
                 subtitle,
-                start_position_seconds,
+                aligned_start_seconds,
             )
-        if start_position_seconds > 0 and extra_inputs:
+        if aligned_start_seconds > 0 and extra_inputs:
             # External bitmap subtitles are a separate demuxer input and must
             # be seeked alongside the main media input.
             extra_inputs = [
                 "-ss",
-                f"{start_position_seconds:.3f}",
+                f"{aligned_start_seconds:.3f}",
                 *extra_inputs,
             ]
         command = [
@@ -1210,8 +1798,8 @@ class MediaPreparer:
             "-readrate_catchup",
             "1.5",
         ]
-        if start_position_seconds > 0:
-            command.extend(["-ss", f"{start_position_seconds:.3f}"])
+        if aligned_start_seconds > 0:
+            command.extend(["-ss", f"{aligned_start_seconds:.3f}"])
         command.extend(
             [
                 *input_options,
@@ -1239,7 +1827,7 @@ class MediaPreparer:
                 "-f",
                 "hls",
                 "-hls_time",
-                "4",
+                f"{HLS_SEGMENT_SECONDS:g}",
                 "-hls_playlist_type",
                 "event",
                 "-hls_segment_type",
@@ -1248,17 +1836,25 @@ class MediaPreparer:
                 "independent_segments+temp_file",
                 "-hls_fmp4_init_filename",
                 "init.mp4",
+                "-start_number",
+                str(first_real_segment),
                 "-hls_segment_filename",
                 str(segment_pattern),
                 "-progress",
                 "pipe:1",
                 "-nostats",
-                str(directory / "index.m3u8"),
+                str(directory / "producer.m3u8"),
             ]
         )
-        remaining_duration = max(0.0, info.duration_seconds - start_position_seconds)
+        remaining_duration = max(0.0, info.duration_seconds - aligned_start_seconds)
         try:
-            return HlsSession(directory, command, remaining_duration, progress)
+            return HlsSession(
+                directory,
+                command,
+                remaining_duration,
+                progress,
+                producer_manifest_name="producer.m3u8",
+            )
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise

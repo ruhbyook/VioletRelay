@@ -197,7 +197,9 @@ def test_compatible_local_file_is_presented_as_copy_hls(tmp_path, monkeypatch):
     calls = []
 
     class FakeSession:
+        directory = tmp_path / "stream"
         manifest = tmp_path / "stream" / "index.m3u8"
+        producer_manifest = tmp_path / "stream" / "producer.m3u8"
         progress = lambda *_args: None
 
         def wait_until_ready(self, cancel):
@@ -206,11 +208,41 @@ def test_compatible_local_file_is_presented_as_copy_hls(tmp_path, monkeypatch):
         def stop(self):
             calls.append(("stop",))
 
+        def publish_vod_segments(
+            self,
+            durations,
+            first_real_segment,
+            real_segment_start_number=None,
+        ):
+            calls.append(
+                (
+                    "publish",
+                    durations,
+                    first_real_segment,
+                    real_segment_start_number,
+                )
+            )
+
     def fake_start(path, media_info, _progress, position, audio):
         calls.append(("start", path, media_info, position, audio))
         return FakeSession()
 
     monkeypatch.setattr(preparer, "_start_copy_hls", fake_start)
+    monkeypatch.setattr(
+        preparer,
+        "_probe_copy_keyframe_start",
+        lambda *_args: 16.0,
+    )
+    monkeypatch.setattr(
+        preparer,
+        "_probe_copy_hls_durations",
+        lambda *_args: (5.0, 7.0, 3.0),
+    )
+    monkeypatch.setattr(
+        preparer,
+        "_probe_first_hls_video_pts",
+        lambda *_args: 0.125,
+    )
     result = preparer.prepare(
         str(source),
         start_position_seconds=18.5,
@@ -220,10 +252,139 @@ def test_compatible_local_file_is_presented_as_copy_hls(tmp_path, monkeypatch):
     assert result.streaming
     assert result.source.endswith("index.m3u8")
     assert result.start_position_seconds == 18.5
+    assert result.absolute_timeline
     assert result.kind == PreparationKind.DIRECT
     assert calls[0] == ("start", source, info, 18.5, 0)
     assert calls[1] == ("ready", False)
+    assert calls[2] == (
+        "publish",
+        (4.0, 4.0, 4.0, 3.875, 5.0, 7.0, 3.0),
+        4,
+        0,
+    )
     assert all(call[0] != "stop" for call in calls)
+
+
+def test_builtin_tv_receives_compatible_local_file_without_hls(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "movie.mp4"
+    source.write_bytes(b"video")
+    info = MediaInfo(
+        source=str(source),
+        duration_seconds=120,
+        format_name="mov,mp4",
+        size=source.stat().st_size,
+        streams=[
+            MediaStream(0, "video", "h264", 1920, 1080),
+            MediaStream(1, "audio", "aac"),
+        ],
+    )
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    monkeypatch.setattr(
+        preparer,
+        "_local_file_stream",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("built-in TV must receive the MP4 file")
+        ),
+    )
+
+    result = preparer.prepare(str(source), allow_hls_playback=False)
+
+    assert result.source == str(source)
+    assert result.kind == PreparationKind.DIRECT
+    assert not result.streaming
+
+
+def test_builtin_tv_builds_complete_mp4_for_selected_subtitles(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "movie.mkv"
+    source.write_bytes(b"source")
+    info = MediaInfo(
+        source=str(source),
+        duration_seconds=120,
+        format_name="matroska",
+        size=source.stat().st_size,
+        streams=[
+            MediaStream(
+                0,
+                "video",
+                "av1",
+                3840,
+                2160,
+                color_transfer="smpte2084",
+            ),
+            MediaStream(1, "audio", "aac"),
+            MediaStream(2, "subtitle", "ass"),
+        ],
+    )
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    monkeypatch.setattr(
+        preparer,
+        "_prepare_hdr_stream",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("built-in TV must not receive HLS")
+        ),
+    )
+
+    def fake_transcode(_source, output, *_args):
+        output.write_bytes(b"converted mp4")
+
+    monkeypatch.setattr(preparer, "_transcode_with_fallback", fake_transcode)
+    result = preparer.prepare(
+        str(source),
+        "embedded:0",
+        allow_hls_playback=False,
+    )
+
+    assert Path(result.source).read_bytes() == b"converted mp4"
+    assert result.kind == PreparationKind.TRANSCODE
+    assert not result.streaming
+
+
+def test_builtin_tv_streams_original_av1_hdr_file_immediately(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "movie.mkv"
+    source.write_bytes(b"source")
+    info = MediaInfo(
+        source=str(source),
+        duration_seconds=120,
+        format_name="matroska",
+        size=source.stat().st_size,
+        streams=[
+            MediaStream(
+                0,
+                "video",
+                "av1",
+                3840,
+                2160,
+                color_transfer="smpte2084",
+            ),
+            MediaStream(1, "audio", "truehd", disposition={"default": 1}),
+        ],
+    )
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    monkeypatch.setattr(
+        preparer,
+        "_transcode_with_fallback",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("native built-in TV playback must start immediately")
+        ),
+    )
+
+    result = preparer.prepare(str(source), allow_hls_playback=False)
+
+    assert result.source == str(source)
+    assert result.kind == PreparationKind.DIRECT
+    assert not result.streaming
 
 
 def test_local_file_hls_wrapper_copies_streams_without_reencoding(
@@ -247,11 +408,19 @@ def test_local_file_hls_wrapper_copies_streams_without_reencoding(
     captured = {}
 
     class FakeSession:
-        def __init__(self, directory, command, duration, _progress):
+        def __init__(
+            self,
+            directory,
+            command,
+            duration,
+            _progress,
+            producer_manifest_name="index.m3u8",
+        ):
             captured.update(
                 directory=directory,
                 command=command,
                 duration=duration,
+                producer_manifest_name=producer_manifest_name,
             )
 
     monkeypatch.setattr(converter_module, "HlsSession", FakeSession)
@@ -263,9 +432,165 @@ def test_local_file_hls_wrapper_copies_streams_without_reencoding(
     assert command[command.index("-readrate") + 1] == "1.05"
     assert command[command.index("-readrate_initial_burst") + 1] == "30"
     assert command[command.index("-readrate_catchup") + 1] == "1.5"
+    assert command[command.index("-ss") + 1] == "12.500"
+    assert command[-1].endswith("producer.m3u8")
+    assert captured["producer_manifest_name"] == "producer.m3u8"
     assert "h264_nvenc" not in command
     assert "libx264" not in command
     assert captured["duration"] == 107.5
+
+
+def test_copy_vod_timeline_uses_irregular_real_segments_and_distinct_prefix(
+    tmp_path,
+):
+    timeline = MediaPreparer._build_copy_hls_timeline(
+        12.0,
+        (8.0, 5.0, 5.0),
+    )
+    session = object.__new__(converter_module.HlsSession)
+    session.manifest = tmp_path / "index.m3u8"
+
+    session.publish_vod_segments(
+        timeline.segment_durations,
+        timeline.first_real_segment,
+        real_segment_start_number=0,
+    )
+
+    playlist = session.manifest.read_text(encoding="utf-8")
+    assert timeline.first_real_segment == 3
+    assert timeline.segment_durations == (4.0, 4.0, 4.0, 8.0, 5.0, 5.0)
+    assert "#EXT-X-TARGETDURATION:8" in playlist
+    assert "missing_000002.m4s" in playlist
+    assert (
+        '#EXT-X-DISCONTINUITY\n#EXT-X-MAP:URI="init.mp4"\n'
+        "#EXTINF:8.000000,\nsegment_000000.m4s"
+    ) in playlist
+    assert "segment_000003.m4s" not in playlist
+
+
+def test_copy_seek_seconds_truncates_and_clamps_to_duration():
+    assert MediaPreparer._copy_seek_seconds(-3.0, 120.0) == 0.0
+    assert MediaPreparer._copy_seek_seconds(0.0009, 120.0) == 0.0
+    assert MediaPreparer._copy_seek_seconds(12.3459, 120.0) == 12.345
+    assert MediaPreparer._copy_seek_seconds(120.0, 120.0) == 119.999
+
+
+def test_copy_timeline_anchor_falls_back_to_full_minus_remaining_duration():
+    anchor = MediaPreparer._resolve_copy_timeline_anchor(
+        18.5,
+        None,
+        0.125,
+        120.0,
+        (8.0, 40.0, 56.0),
+    )
+
+    assert anchor == 16.0
+    assert MediaPreparer._copy_timeline_prefix(0.0000004) == ()
+
+
+def test_copy_keyframe_probe_accounts_for_format_start_time(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "shifted.mp4"
+    source.write_bytes(b"video")
+    info = MediaInfo(str(source), 120, "mov,mp4", 5, [])
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    captured = {}
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = (
+            '{"packets":[{"pts_time":"14.004000","flags":"K__"}],'
+            '"format":{"start_time":"9.978000"}}'
+        )
+
+    def fake_run(command, **_kwargs):
+        captured["command"] = command
+        return Result()
+
+    monkeypatch.setattr(converter_module.subprocess, "run", fake_run)
+
+    keyframe = preparer._probe_copy_keyframe_start(
+        source,
+        5.0,
+        threading.Event(),
+    )
+
+    assert keyframe == pytest.approx(4.026)
+    command = captured["command"]
+    assert command[command.index("-read_intervals") + 1] == "+5.000%+#1"
+
+
+def test_copy_hls_duration_probe_preserves_irregular_extinfs_and_caches(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "movie.mp4"
+    source.write_bytes(b"video")
+    info = MediaInfo(
+        str(source),
+        120,
+        "mov,mp4",
+        5,
+        [MediaStream(0, "video", "h264"), MediaStream(1, "audio", "aac")],
+    )
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    launches = []
+
+    class FakeProcess:
+        returncode = 0
+
+        def __init__(self, command, **_kwargs):
+            launches.append(command)
+            Path(command[-1]).write_text(
+                "#EXTM3U\n"
+                "#EXT-X-PLAYLIST-TYPE:VOD\n"
+                "#EXTINF:4.046000,\nNUL\n"
+                "#EXTINF:8.300000,\nNUL\n"
+                "#EXTINF:1.167000,\nNUL\n"
+                "#EXT-X-ENDLIST\n",
+                encoding="utf-8",
+            )
+
+        def communicate(self, timeout):
+            assert timeout == 0.2
+            return "", ""
+
+    monkeypatch.setattr(converter_module.subprocess, "Popen", FakeProcess)
+    directory = tmp_path / "stream"
+    directory.mkdir()
+
+    first = preparer._probe_copy_hls_durations(
+        source,
+        info,
+        12.5,
+        0,
+        directory,
+        threading.Event(),
+    )
+    second = preparer._probe_copy_hls_durations(
+        source,
+        info,
+        12.5,
+        0,
+        tmp_path / "unused",
+        threading.Event(),
+    )
+
+    assert first == second == (4.046, 8.3, 1.167)
+    assert len(launches) == 1
+    command = launches[0]
+    assert command[command.index("-ss") + 1] == "12.500"
+    assert command[command.index("-hls_playlist_type") + 1] == "vod"
+    assert command[command.index("-hls_segment_filename") + 1] == (
+        "NUL" if converter_module.os.name == "nt" else converter_module.os.devnull
+    )
 
 
 def test_selected_subtitle_starts_streaming_transcode_instead_of_cached_conversion(
@@ -275,6 +600,7 @@ def test_selected_subtitle_starts_streaming_transcode_instead_of_cached_conversi
     source.write_bytes(b"source")
     info = media_with_subtitle("subrip")
     info.source = str(source)
+    info.duration_seconds = 120
     preparer = MediaPreparer(
         FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
     )
@@ -316,17 +642,26 @@ def test_subtitle_hls_transcode_is_paced_and_burns_selected_track(
     source.write_bytes(b"source")
     info = media_with_subtitle("subrip")
     info.source = str(source)
+    info.duration_seconds = 120
     preparer = MediaPreparer(
         FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
     )
     captured = {}
 
     class FakeSession:
-        def __init__(self, directory, command, duration, _progress):
+        def __init__(
+            self,
+            directory,
+            command,
+            duration,
+            _progress,
+            producer_manifest_name="index.m3u8",
+        ):
             captured.update(
                 directory=directory,
                 command=command,
                 duration=duration,
+                producer_manifest_name=producer_manifest_name,
             )
 
     monkeypatch.setattr(converter_module, "HlsSession", FakeSession)
@@ -335,7 +670,7 @@ def test_subtitle_hls_transcode_is_paced_and_burns_selected_track(
         info,
         "embedded:0",
         lambda *_args: None,
-        2.5,
+        10.5,
         1,
         EncoderBackend.NVIDIA,
     )
@@ -343,7 +678,7 @@ def test_subtitle_hls_transcode_is_paced_and_burns_selected_track(
     command = captured["command"]
     assert command[command.index("-readrate") + 1] == "1.05"
     assert command[command.index("-readrate_initial_burst") + 1] == "30"
-    assert command[command.index("-ss") + 1] == "2.500"
+    assert command[command.index("-ss") + 1] == "8.000"
     video_codecs = [
         command[index + 1]
         for index, value in enumerate(command[:-1])
@@ -355,15 +690,75 @@ def test_subtitle_hls_transcode_is_paced_and_burns_selected_track(
     assert command[command.index("-hls_flags") + 1] == (
         "independent_segments+temp_file"
     )
+    assert command[command.index("-start_number") + 1] == "2"
+    assert command[-1].endswith("producer.m3u8")
+    assert captured["producer_manifest_name"] == "producer.m3u8"
     assert command[command.index("-map", command.index("-vf")) + 1] == "0:a:1?"
     video_filter = command[command.index("-vf") + 1]
     assert "scale_cuda=" in video_filter
     assert "hwdownload" in video_filter
     assert "subtitles=" in video_filter
     assert "si=0" in video_filter
-    assert "setpts=PTS+2.500/TB" in video_filter
+    assert "setpts=PTS+8.000/TB" in video_filter
+    assert "setpts=PTS+10.500/TB" not in video_filter
     assert "scale=w=" not in video_filter
-    assert captured["duration"] == 7.5
+    assert captured["duration"] == 112
+
+
+def test_external_bitmap_subtitle_hls_aligns_both_input_seeks(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "movie.mkv"
+    source.write_bytes(b"source")
+    subtitle = tmp_path / "captions.sup"
+    info = media_with_subtitle("ass")
+    info.source = str(source)
+    info.duration_seconds = 120
+    preparer = MediaPreparer(
+        FakeLocator(), FakeProbe(info), CastCache(tmp_path / "cache", 10_000)
+    )
+    captured = {}
+
+    class FakeSession:
+        def __init__(
+            self,
+            _directory,
+            command,
+            duration,
+            _progress,
+            producer_manifest_name="index.m3u8",
+        ):
+            captured.update(
+                command=command,
+                duration=duration,
+                producer_manifest_name=producer_manifest_name,
+            )
+
+    monkeypatch.setattr(converter_module, "HlsSession", FakeSession)
+    preparer._start_transcode_hls(
+        str(source),
+        info,
+        str(subtitle),
+        lambda *_args: None,
+        10.5,
+        0,
+        EncoderBackend.NVIDIA,
+        accelerated_input=False,
+    )
+
+    command = captured["command"]
+    seek_indices = [index for index, value in enumerate(command) if value == "-ss"]
+    assert [command[index + 1] for index in seek_indices] == ["8.000", "8.000"]
+    main_input = command.index("-i")
+    subtitle_input = command.index("-i", main_input + 1)
+    assert seek_indices[0] < main_input
+    assert seek_indices[1] == subtitle_input - 2
+    graph = command[command.index("-filter_complex") + 1]
+    assert "[0:v:0][1:s:0]overlay=" in graph
+    assert command[command.index("-start_number") + 1] == "2"
+    assert captured["duration"] == 112
+    assert captured["producer_manifest_name"] == "producer.m3u8"
 
 
 def test_extensionless_hls_content_type_bypasses_probe(tmp_path, monkeypatch):

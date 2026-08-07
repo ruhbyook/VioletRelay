@@ -18,7 +18,12 @@ from PySide6.QtCore import (
 from violetrelay.controllers.playback import PlaybackController
 from violetrelay.errors import error_message
 from violetrelay.models import QueueModel
-from violetrelay.services.airplay import AirPlayDevice, AsyncRuntime, CastStatus, PairingPrompt
+from violetrelay.services.airplay import (
+    AirPlayDevice,
+    AsyncRuntime,
+    CastStatus,
+    PairingPrompt,
+)
 from violetrelay.services.converter import ConversionCancelled, MediaPreparer, PreparedMedia
 from violetrelay.settings import SettingsStore
 
@@ -95,6 +100,7 @@ class AirPlayController(QObject):
     _resumeLocal = Signal(int)
     _advanceQueue = Signal()
     _streamSeekReady = Signal(int)
+    _streamSeekFailed = Signal(str, bool)
 
     def __init__(
         self,
@@ -129,6 +135,7 @@ class AirPlayController(QObject):
         self._cast_duration = 0
         self._receiver_volume = 0.0
         self._receiver_volume_available = False
+        self._transport_controls_available = True
         self._cast_device_name = ""
         self._cast_device_id = ""
         self._last_cast_row = -1
@@ -136,6 +143,11 @@ class AirPlayController(QObject):
         self._active_stream_session = None
         self._stream_start_seconds = 0.0
         self._stream_duration_seconds = 0
+        self._stream_absolute_timeline = False
+        self._stream_seek_target: int | None = None
+        self._pending_stream_session = None
+        self._pending_stream_duration_seconds = 0
+        self._pending_stream_absolute_timeline = False
         self._requested_start_position_seconds: float | None = None
         self._connecting = False
         self._poll_in_flight = False
@@ -156,6 +168,7 @@ class AirPlayController(QObject):
         self._resumeLocal.connect(self._on_resume_local)
         self._advanceQueue.connect(self._advance_cast_queue)
         self._streamSeekReady.connect(self._on_stream_seek_ready)
+        self._streamSeekFailed.connect(self._on_stream_seek_failed)
 
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(1000)
@@ -228,6 +241,18 @@ class AirPlayController(QObject):
     @Property(bool, notify=castProgressChanged)
     def receiverVolumeAvailable(self) -> bool:
         return self._receiver_volume_available
+
+    @Property(bool, notify=stateChanged)
+    def transportControlsAvailable(self) -> bool:
+        return self._transport_controls_available
+
+    @Property(bool, notify=stateChanged)
+    def seekAvailable(self) -> bool:
+        return (
+            not self._casting
+            or self._active_stream_session is not None
+            or self._transport_controls_available
+        )
 
     def _watch(self, future, success_signal: Signal | None = None) -> None:
         def finished(done) -> None:
@@ -317,7 +342,7 @@ class AirPlayController(QObject):
         device = self.devices.at(row)
         item = self.queue.current_item()
         if not device or not item:
-            self.errorOccurred.emit("Choose a video and an Apple TV first")
+            self.errorOccurred.emit("Choose a video and an AirPlay TV first")
             return
         if self.playback.fallbackPreparing:
             self.errorOccurred.emit(
@@ -339,10 +364,11 @@ class AirPlayController(QObject):
         self._last_cast_row = row
         self._cast_device_id = device.identifier
         self._cast_device_name = device.name
+        self._transport_controls_available = device.transport_controls
         try:
             self.settings.set("preferred_device_id", device.identifier)
         except Exception:
-            self.log.warning("Preferred Apple TV could not be saved", exc_info=True)
+            self.log.warning("Preferred AirPlay receiver could not be saved", exc_info=True)
         self._preparing = True
         self._preparation_progress_value = 0.0
         self._preparation_status = "Inspecting media"
@@ -351,6 +377,10 @@ class AirPlayController(QObject):
         self.playback.pause()
         self.stateChanged.emit()
         self.progressChanged.emit()
+        self._start_media_preparation(item, start_position_seconds)
+
+    def _start_media_preparation(self, item, start_position_seconds: float) -> None:
+        seeking = self._stream_seek_target is not None
         try:
             future = self.executor.submit(
                 self.preparer.prepare,
@@ -364,15 +394,22 @@ class AirPlayController(QObject):
                 self.cancel_event,
                 start_position_seconds,
                 item.audio_stream,
+                # Built-in receivers need a correctly labelled HLS queue item
+                # to use their full-screen MSE video path. The preparer streams
+                # only an initial GPU buffer, so casting does not wait for a
+                # complete compatibility copy.
+                allow_hls_playback=True,
             )
         except RuntimeError as error:
-            self._preparing = False
-            self.stateChanged.emit()
-            if self._local_was_playing:
-                self.playback.player.play()
-            self.errorOccurred.emit(
-                error_message(error, "Cast preparation could not be started")
-            )
+            message = error_message(error, "Cast preparation could not be started")
+            if seeking:
+                self._on_stream_seek_failed(message, True)
+            else:
+                self._preparing = False
+                self.stateChanged.emit()
+                if self._local_was_playing:
+                    self.playback.player.play()
+                self.errorOccurred.emit(message)
             return
 
         def completed(done) -> None:
@@ -393,11 +430,16 @@ class AirPlayController(QObject):
             try:
                 self._preparationFinished.emit(done.result())
             except ConversionCancelled:
-                self._operationFailed.emit("Cast preparation cancelled")
+                if seeking:
+                    self._streamSeekFailed.emit("Cast seek cancelled", True)
+                else:
+                    self._operationFailed.emit("Cast preparation cancelled")
             except Exception as error:
-                self._operationFailed.emit(
-                    error_message(error, "Cast preparation failed")
-                )
+                message = error_message(error, "Cast preparation failed")
+                if seeking:
+                    self._streamSeekFailed.emit(message, True)
+                else:
+                    self._operationFailed.emit(message)
 
         future.add_done_callback(completed)
 
@@ -420,7 +462,7 @@ class AirPlayController(QObject):
 
     @Slot(int)
     def seek(self, seconds: int) -> None:
-        if not self._casting:
+        if not self._casting or self._preparing:
             return
         if self._active_stream_session is None:
             self._submit(self.runtime.service.command("seek", seconds))
@@ -436,31 +478,17 @@ class AirPlayController(QObject):
         if abs(target - self._cast_position) < 2:
             return
 
-        self._stop_requested = True
+        item = self.queue.current_item()
+        if item is None:
+            return
+        self._stream_seek_target = target
         self._preparing = True
         self._preparation_progress_value = 0.0
         self._preparation_status = f"Seeking to {target // 60}:{target % 60:02d}"
-        self._finish_cast()
+        self.cancel_event.clear()
         self.stateChanged.emit()
         self.progressChanged.emit()
-        future = self._start_future(self.runtime.service.stop_cast())
-        if future is None:
-            self._streamSeekReady.emit(target)
-            return
-
-        def finished(done) -> None:
-            if self._closed:
-                return
-            try:
-                done.result()
-            except Exception as error:
-                self.log.warning(
-                    "Apple TV stop failed while seeking; restarting anyway: %s",
-                    error,
-                )
-            self._streamSeekReady.emit(target)
-
-        future.add_done_callback(finished)
+        self._start_media_preparation(item, float(target))
 
     @Slot()
     def stopCasting(self) -> None:
@@ -479,7 +507,7 @@ class AirPlayController(QObject):
                 done.result()
             except Exception as error:
                 self._operationFailed.emit(
-                    error_message(error, "Apple TV could not be stopped cleanly")
+                    error_message(error, "AirPlay could not be stopped cleanly")
                 )
             finally:
                 self._stopped.emit()
@@ -501,7 +529,7 @@ class AirPlayController(QObject):
                 done.result()
             except Exception as error:
                 self._operationFailed.emit(
-                    error_message(error, "Apple TV could not be stopped cleanly")
+                    error_message(error, "AirPlay could not be stopped cleanly")
                 )
             finally:
                 self._stopped.emit()
@@ -572,13 +600,18 @@ class AirPlayController(QObject):
         self.progressChanged.emit()
 
     def _on_prepared(self, prepared: PreparedMedia) -> None:
+        if self._stream_seek_target is not None:
+            self._on_stream_seek_prepared(prepared)
+            return
         self._preparing = False
         self._preparation_progress_value = 1.0
-        self._preparation_status = "Connecting to Apple TV"
+        self._preparation_status = "Connecting to AirPlay TV"
         self.stateChanged.emit()
         self.progressChanged.emit()
         self._active_stream_session = prepared.stream_session
+        absolute_timeline = bool(getattr(prepared, "absolute_timeline", False))
         if prepared.streaming:
+            self._stream_absolute_timeline = absolute_timeline
             self._stream_start_seconds = max(
                 0.0,
                 prepared.start_position_seconds,
@@ -593,6 +626,7 @@ class AirPlayController(QObject):
                 int(self._stream_start_seconds),
             )
         else:
+            self._stream_absolute_timeline = False
             self._stream_start_seconds = 0.0
             self._stream_duration_seconds = 0
         self._connecting = True
@@ -601,15 +635,96 @@ class AirPlayController(QObject):
             self._cast_device_name,
             prepared.streaming,
         )
+        expected_duration = (
+            prepared.media_info.duration_seconds
+            if prepared.media_info is not None
+            else self.playback.duration / 1000.0
+        )
+        if prepared.streaming and not absolute_timeline:
+            expected_duration -= prepared.start_position_seconds
+        cast_position = self.playback.position / 1000.0
+        if prepared.streaming:
+            cast_position = (
+                prepared.start_position_seconds if absolute_timeline else 0.0
+            )
         self.stateChanged.emit()
         self._submit(
             self.runtime.service.start_cast(
                 self._cast_device_id,
                 prepared.source,
-                0.0 if prepared.streaming else self.playback.position / 1000.0,
+                cast_position,
+                max(0.0, expected_duration),
             ),
             self._castStarted,
         )
+
+    def _on_stream_seek_prepared(self, prepared: PreparedMedia) -> None:
+        target = self._stream_seek_target
+        if target is None:
+            if prepared.stream_session is not None:
+                self._stop_stream_session(prepared.stream_session)
+            return
+        if (
+            not self._casting
+            or not prepared.streaming
+            or prepared.stream_session is None
+        ):
+            if prepared.stream_session is not None:
+                self._stop_stream_session(prepared.stream_session)
+            self._streamSeekFailed.emit(
+                "AirPlay seek could not create a replacement video stream",
+                bool(self._casting),
+            )
+            return
+
+        source_duration = (
+            prepared.media_info.duration_seconds
+            if prepared.media_info is not None
+            else self.playback.duration / 1000.0
+        )
+        absolute_timeline = bool(getattr(prepared, "absolute_timeline", False))
+        self._pending_stream_session = prepared.stream_session
+        self._pending_stream_absolute_timeline = absolute_timeline
+        self._pending_stream_duration_seconds = max(
+            int(round(source_duration)),
+            target,
+        )
+        self._preparation_progress_value = 1.0
+        self._preparation_status = "Switching the TV to the new position"
+        self.progressChanged.emit()
+        remaining_duration = max(0.0, source_duration - target)
+        coroutine = self.runtime.service.replace_stream(
+            prepared.source,
+            target if absolute_timeline else 0.0,
+            source_duration if absolute_timeline else remaining_duration,
+        )
+        try:
+            future = self.runtime.submit(coroutine)
+        except Exception as error:
+            try:
+                coroutine.close()
+            except Exception:
+                pass
+            self._streamSeekFailed.emit(
+                error_message(error, "AirPlay seek could not be started"),
+                True,
+            )
+            return
+
+        def finished(done) -> None:
+            if self._closed:
+                return
+            try:
+                done.result()
+            except Exception as error:
+                self._streamSeekFailed.emit(
+                    error_message(error, "AirPlay seek failed"),
+                    bool(getattr(error, "cast_still_active", False)),
+                )
+            else:
+                self._streamSeekReady.emit(target)
+
+        future.add_done_callback(finished)
 
     def _on_cast_started(self) -> None:
         self._connecting = False
@@ -645,7 +760,7 @@ class AirPlayController(QObject):
                 self._statusReady.emit(done.result())
             except Exception as error:
                 self._operationFailed.emit(
-                    error_message(error, "Apple TV status could not be read")
+                    error_message(error, "AirPlay status could not be read")
                 )
 
         future.add_done_callback(finished)
@@ -653,9 +768,9 @@ class AirPlayController(QObject):
     def _on_status(self, status: CastStatus) -> None:
         self._cast_state = status.state
         if self._active_stream_session is not None:
-            absolute_position = (
-                self._stream_start_seconds + status.position_seconds
-            )
+            absolute_position = status.position_seconds
+            if not self._stream_absolute_timeline:
+                absolute_position += self._stream_start_seconds
             if self._stream_duration_seconds > 0:
                 absolute_position = min(
                     absolute_position,
@@ -686,10 +801,10 @@ class AirPlayController(QObject):
             if recoverable:
                 self.recoveryNeeded.emit(
                     status.error
-                    or "The Apple TV connection was lost. Retry or continue here."
+                    or "The AirPlay connection was lost. Retry or continue here."
                 )
             else:
-                self.errorOccurred.emit(status.error or "Apple TV playback failed")
+                self.errorOccurred.emit(status.error or "AirPlay playback failed")
         elif status.state == "ended":
             clear_resume = getattr(
                 self.playback,
@@ -712,7 +827,7 @@ class AirPlayController(QObject):
                         self._advanceQueue.emit()
                     except Exception as error:
                         self._operationFailed.emit(
-                            error_message(error, "Apple TV queue cleanup failed")
+                            error_message(error, "AirPlay queue cleanup failed")
                         )
 
                 future.add_done_callback(advance)
@@ -746,7 +861,7 @@ class AirPlayController(QObject):
         )
         if self.devices.at(row) is None:
             self.errorOccurred.emit(
-                "The Apple TV is no longer in the device list. Rescan and try again."
+                "The AirPlay TV is no longer in the device list. Rescan and try again."
             )
             return
         self._requested_start_position_seconds = float(self._cast_position)
@@ -762,21 +877,68 @@ class AirPlayController(QObject):
     def _on_stream_seek_ready(self, target: int) -> None:
         if self._closed:
             return
-        self._cleanup_stream_session()
+        old_session = self._active_stream_session
+        new_session = self._pending_stream_session
+        self._pending_stream_session = None
+        if new_session is None:
+            self._on_stream_seek_failed(
+                "AirPlay seek completed without a replacement stream",
+                False,
+            )
+            return
+        self._active_stream_session = new_session
+        self._stream_absolute_timeline = self._pending_stream_absolute_timeline
+        self._pending_stream_absolute_timeline = False
+        if old_session is not None and old_session is not new_session:
+            self._stop_stream_session(old_session)
+        self._stream_start_seconds = float(target)
+        self._stream_duration_seconds = max(
+            self._pending_stream_duration_seconds,
+            target,
+        )
+        self._pending_stream_duration_seconds = 0
+        self._stream_seek_target = None
         self._preparing = False
-        self._requested_start_position_seconds = float(target)
+        self._preparation_status = "Playing on TV"
         self.playback.seek(target * 1000)
         self._cast_position = target
-        self.castProgressChanged.emit()
-        row = next(
-            (
-                index
-                for index, device in enumerate(self.devices.devices)
-                if device.identifier == self._cast_device_id
-            ),
-            self._last_cast_row,
+        self._cast_duration = self._stream_duration_seconds
+        self._cast_state = "playing"
+        self._cast_generation += 1
+        self._stop_requested = False
+        self.log.info(
+            "Cast seek completed inside the active receiver session: position=%d",
+            target,
         )
-        self.castTo(row)
+        self.stateChanged.emit()
+        self.progressChanged.emit()
+        self.castProgressChanged.emit()
+
+    def _on_stream_seek_failed(
+        self,
+        message: str,
+        cast_still_active: bool,
+    ) -> None:
+        pending_session = self._pending_stream_session
+        self._pending_stream_session = None
+        if pending_session is not None:
+            self._stop_stream_session(pending_session)
+        self._pending_stream_duration_seconds = 0
+        self._pending_stream_absolute_timeline = False
+        self._stream_seek_target = None
+        self._preparing = False
+        self._preparation_status = "Playing on TV" if cast_still_active else ""
+        if not cast_still_active:
+            resume_position = self._cast_position
+            self._finish_cast()
+            self._cleanup_stream_session()
+            self._submit(self.runtime.service.stop_cast())
+            if self._local_was_playing:
+                self.playback.seek(resume_position * 1000)
+                self.playback.player.play()
+        self.stateChanged.emit()
+        self.progressChanged.emit()
+        self.errorOccurred.emit(message or "AirPlay seek failed")
 
     def _advance_cast_queue(self) -> None:
         self.playback.next()
@@ -793,26 +955,28 @@ class AirPlayController(QObject):
     def _cleanup_stream_session(self) -> None:
         session = self._active_stream_session
         self._active_stream_session = None
+        self._stream_absolute_timeline = False
         if session is not None:
-            try:
-                future = self.executor.submit(session.stop)
+            self._stop_stream_session(session)
 
-                def cleaned(done) -> None:
-                    try:
-                        error = done.exception()
-                    except concurrent.futures.CancelledError:
-                        return
-                    if error is not None:
-                        self.log.warning(
-                            "Streaming-session cleanup failed: %s", error
-                        )
+    def _stop_stream_session(self, session) -> None:
+        try:
+            future = self.executor.submit(session.stop)
 
-                future.add_done_callback(cleaned)
-            except RuntimeError:
+            def cleaned(done) -> None:
                 try:
-                    session.stop()
-                except Exception:
-                    self.log.warning("Streaming-session cleanup failed", exc_info=True)
+                    error = done.exception()
+                except concurrent.futures.CancelledError:
+                    return
+                if error is not None:
+                    self.log.warning("Streaming-session cleanup failed: %s", error)
+
+            future.add_done_callback(cleaned)
+        except RuntimeError:
+            try:
+                session.stop()
+            except Exception:
+                self.log.warning("Streaming-session cleanup failed", exc_info=True)
 
     def _finish_cast(self) -> None:
         self.poll_timer.stop()

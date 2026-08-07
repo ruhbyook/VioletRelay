@@ -14,13 +14,13 @@ def test_package_metadata_and_runtime_version_match_violetrelay_brand():
         project = tomllib.load(stream)["project"]
 
     assert project["name"] == "violetrelay"
-    assert project["version"] == __version__ == "0.6.3"
+    assert project["version"] == __version__ == "0.7.0"
     assert project["scripts"] == {"violetrelay": "violetrelay.app:main"}
     version_info = (
         ROOT / "assets" / "violetrelay-version-info.txt"
     ).read_text(encoding="utf-8")
     assert "StringStruct('ProductName', 'Violet Relay')" in version_info
-    assert "StringStruct('ProductVersion', '0.6.3.0')" in version_info
+    assert "StringStruct('ProductVersion', '0.7.0.0')" in version_info
 
 
 def test_runtime_qml_uses_only_the_current_visible_brand():
@@ -36,19 +36,20 @@ def test_runtime_qml_uses_only_the_current_visible_brand():
     assert "violetrelay-icon.png" in qml
 
 
-def test_public_copy_presents_apple_tv_as_optional_and_uses_current_brand():
+def test_public_copy_presents_airplay_as_optional_and_uses_current_brand():
     public_files = (
         ROOT / "README.md",
         ROOT / "PRIVACY.md",
-        ROOT / "docs" / "releases" / "0.6.3.md",
+        ROOT / "docs" / "releases" / "0.7.0.md",
     )
     public_copy = "\n".join(
         path.read_text(encoding="utf-8") for path in public_files
     )
 
-    assert "Apple TV casting is an optional extra" in public_copy
-    assert "Only if you want Apple TV casting" in public_copy
-    assert "Free Windows Media Player with Apple TV AirPlay Casting" in public_copy
+    assert "AirPlay casting is an optional extra" in public_copy
+    assert "Only if you want AirPlay casting" in public_copy
+    assert "Free Windows Media Player with AirPlay Casting" in public_copy
+    assert "compatible smart TV" in public_copy
     assert "free and open-source Windows 11 media player" in public_copy
     assert "ReelFerry" not in public_copy
     assert "xMediaPlayerx" not in public_copy
