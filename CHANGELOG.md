@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.7.1 - 2026-08-07
+
+- Updated `aiohttp` to 3.14.3 and `cryptography` to 50.0.0 to resolve all
+  advisories reported by the locked-dependency security audit.
+
 ## 0.7.0 - 2026-08-07
 
 - Added discovery and casting support for smart TVs that advertise built-in
