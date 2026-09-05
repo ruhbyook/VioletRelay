@@ -237,6 +237,50 @@ def test_fresh_push_metadata_avoids_polling(tmp_path):
     assert status.position_seconds == 12
 
 
+def test_idle_receiver_metadata_is_polled_until_playback_starts(tmp_path):
+    async def scenario():
+        service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")
+        service.PLAYBACK_START_POLL_SECONDS = 0.001
+        service.PLAYBACK_START_TIMEOUT_SECONDS = 0.5
+        states = iter([DeviceState.Idle, DeviceState.Playing])
+        samples = []
+
+        class Features:
+            def in_state(self, state, feature):
+                return state == FeatureState.Unavailable and feature == FeatureName.Position
+
+        class Metadata:
+            async def playing(self):
+                state = next(states)
+                samples.append(state)
+                return SimpleNamespace(device_state=state)
+
+        service.atv = SimpleNamespace(features=Features(), metadata=Metadata())
+        service._metadata_available = service._supports_playback_metadata()
+        service.hls_runner = object()
+        service._media_request_event = asyncio.Event()
+        service._media_request_event.set()
+        await service._wait_until_playback_started()
+        assert samples == [DeviceState.Idle, DeviceState.Playing]
+        assert service._push_playing.device_state == DeviceState.Playing
+
+    asyncio.run(scenario())
+
+
+def test_receiver_without_metadata_support_keeps_fetch_confirmation(tmp_path):
+    async def scenario():
+        service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")
+
+        class Features:
+            def in_state(self, state, feature):
+                return state == FeatureState.Unsupported and feature == FeatureName.Position
+
+        service.atv = SimpleNamespace(features=Features())
+        assert not service._supports_playback_metadata()
+
+    asyncio.run(scenario())
+
+
 def test_receiver_volume_is_exposed_only_when_feature_is_available(tmp_path):
     async def scenario():
         service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")

@@ -94,8 +94,11 @@ def test_airplay_video_feature_detection_rejects_audio_only_receiver():
     assert not AirPlayService._supports_airplay_video(speaker)
 
 
-def test_windows_large_file_transfer_avoids_transmitfile_dword_limit():
-    assert not _requires_chunked_file_transfer(0xFFFFFFFF, windows=True)
+def test_windows_large_file_transfer_avoids_transmitfile_size_limit():
+    assert not _requires_chunked_file_transfer(0x7FFFFFFE, windows=True)
+    assert _requires_chunked_file_transfer(0x7FFFFFFF, windows=True)
+    assert _requires_chunked_file_transfer(2_463_087_164, windows=True)
+    assert _requires_chunked_file_transfer(0xFFFFFFFF, windows=True)
     assert _requires_chunked_file_transfer(0x100000000, windows=True)
     assert not _requires_chunked_file_transfer(0x100000000, windows=False)
 

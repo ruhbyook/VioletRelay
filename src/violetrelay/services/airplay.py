@@ -34,14 +34,16 @@ _HLS_SEGMENT_NAME = re.compile(r"segment_(\d+)\.m4s\Z", re.IGNORECASE)
 def _requires_chunked_file_transfer(
     count: int, *, windows: bool | None = None
 ) -> bool:
-    """Return whether a file span exceeds Windows TransmitFile's DWORD size."""
+    """Return whether a file span exceeds Windows TransmitFile's size limit."""
     if windows is None:
         windows = os.name == "nt"
-    return windows and count > 0xFFFFFFFF
+    # TransmitFile accepts at most 2,147,483,646 bytes, despite its DWORD
+    # parameter. Larger spans fail with WinError 87, including 2-4 GiB MP4s.
+    return windows and count > 0x7FFFFFFE
 
 
 class _LargeFileResponse(web.FileResponse):
-    """Use aiohttp's bounded fallback for Windows file spans above 4 GiB."""
+    """Use aiohttp's bounded fallback for spans beyond TransmitFile's limit."""
 
     async def _sendfile(self, request: Any, fobj: Any, offset: int, count: int):
         if _requires_chunked_file_transfer(count):
@@ -566,13 +568,13 @@ class AirPlayService:
         self.explicit_stop = False
         self._user_paused = False
         self._status_failures = 0
+        self._receiver_compat_playback = self._is_third_party_video_receiver(
+            config, airplay_service=config.get_service(Protocol.AirPlay)
+        )
         self._metadata_available = self._supports_playback_metadata()
         self._estimated_started_at = 0.0
         self._estimated_start_position = max(0.0, position_seconds)
         self._estimated_duration = max(0.0, duration_seconds)
-        self._receiver_compat_playback = self._is_third_party_video_receiver(
-            config, airplay_service=config.get_service(Protocol.AirPlay)
-        )
         self.cast_transport = "airplay"
         play_source = source
         source_path = Path(source)
@@ -765,7 +767,7 @@ class AirPlayService:
         installed = {str(application.identifier) for application in applications}
         if not installed.intersection(self.VLC_BUNDLE_IDS):
             raise RuntimeError(
-                f"tvOS {os_version} blocks pyatv media casting. Install the free VLC "
+                f"The optional VLC fallback is unavailable on this Apple TV (tvOS {os_version}). Install the free VLC "
                 "app from the App Store on Apple TV, then cast again; Violet Relay "
                 "will use VLC automatically while keeping remote controls here."
             )
@@ -942,8 +944,17 @@ class AirPlayService:
             # doubles where feature discovery is not exposed.
             return True
         try:
+            # An idle Apple TV's MRP Position is Unavailable until playback
+            # starts. Built-in TVs expose the same state through RAOP, which
+            # only tracks audio sent by pyatv and stays Idle during our video
+            # cast. Preserve media-fetch confirmation for those receivers.
             return features.in_state(
                 FeatureState.Available, FeatureName.Position
+            ) or (
+                not self._receiver_compat_playback
+                and features.in_state(
+                    FeatureState.Unavailable, FeatureName.Position
+                )
             )
         except Exception:
             return True

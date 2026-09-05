@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 import pyatv
 from pyatv.const import DeviceState, Protocol
+from pyatv.protocols.raop import RaopFeatures, RaopPlaybackManager, RaopMetadata
+from aiohttp import ClientSession
 
 import violetrelay.services.airplay as airplay_module
 import violetrelay.services.airplay_modern as modern_module
@@ -120,6 +122,41 @@ def test_modern_command_uses_airplay_video_stream_header():
         "X-Apple-Stream-ID": "1",
     }
     assert "X-Apple-StreamID" not in calls[0][1]["headers"]
+
+
+def test_apple_tv_queue_commands_keep_original_rcs_header():
+    calls = []
+
+    class Rtsp:
+        async def exchange(self, method, **kwargs):
+            calls.append((method, kwargs))
+            # tvOS also returns 200 for the wrong spelling, so status alone
+            # cannot catch this regression: the queue must target StreamID.
+            return SimpleNamespace(code=200)
+
+    async def scenario():
+        session = modern_module.ModernAirPlaySession(
+            None, None, logging.getLogger("test.airplay")
+        )
+        session.rtsp = Rtsp()
+        session._stream_headers = {
+            "X-Apple-ProtocolVersion": "1",
+            "X-Apple-Session-ID": "session",
+            "X-Apple-Stream-ID": "1",
+        }
+        for payload in (
+            build_insert_command("http://media.test/index.m3u8", 0, "ITEM"),
+            build_end_policy_command(),
+            {"type": "setRate", "rate": 1.0},
+        ):
+            await session._command(payload)
+
+    asyncio.run(scenario())
+    assert len(calls) == 3
+    for method, kwargs in calls:
+        assert method == "POST"
+        assert kwargs["uri"] == "/command"
+        assert kwargs["headers"] == {"X-Apple-StreamID": "1"}
 
 
 def test_built_in_tv_negotiates_minimal_command_headers():
@@ -386,3 +423,87 @@ def test_tvos_26_prefers_modern_airplay(tmp_path, monkeypatch):
     assert transport == "airplay2"
     assert ("start", "https://media.test/video.mp4", 7.5) in calls
     assert calls[-2:] == [("stop",), ("close",)]
+
+
+def test_switching_receivers_uses_video_metadata_only_when_available(tmp_path, monkeypatch):
+    """RAOP's idle Position must not be mistaken for MRP video metadata."""
+    movie = tmp_path / "movie.mp4"
+    movie.write_bytes(b"test media bytes")
+    metadata_polls = []
+
+    class Config:
+        address = "127.0.0.1"
+
+        def __init__(self, built_in):
+            self.built_in = built_in
+            self.name = "Built-in TV" if built_in else "Apple TV"
+            self.airplay = SimpleNamespace(
+                credentials="credentials",
+                properties={
+                    "model": "100E75LE" if built_in else "AppleTV14,1",
+                    "osvers": "" if built_in else "26.6",
+                    "features": "0x0,0x2",
+                },
+            )
+
+        def get_service(self, protocol):
+            return self.airplay if protocol == Protocol.AirPlay else None
+
+    class ModernSession:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def start(self, source, _position):
+            async with ClientSession() as client:
+                async with client.get(source) as response:
+                    assert await response.read() == movie.read_bytes()
+
+        async def close(self):
+            pass
+
+        async def stop(self):
+            pass
+
+    class Remote:
+        async def stop(self):
+            pass
+
+    async def connect(config, *_args, **_kwargs):
+        manager = RaopPlaybackManager(None)
+        raop_metadata = RaopMetadata(manager)
+
+        class Metadata:
+            async def playing(self):
+                metadata_polls.append(config.built_in)
+                if config.built_in:
+                    return await raop_metadata.playing()
+                return SimpleNamespace(
+                    device_state=DeviceState.Playing, position=1, total_time=120
+                )
+
+        return SimpleNamespace(
+            # Both idle MRP and RAOP advertise Position as Unavailable.
+            features=RaopFeatures(manager), metadata=Metadata(),
+            remote_control=Remote(), close=lambda: set(),
+        )
+
+    async def scenario():
+        service = AirPlayService(asyncio.get_running_loop(), tmp_path / "pyatv.json")
+        service.METADATALESS_START_GRACE_SECONDS = 0
+        service.PLAYBACK_START_TIMEOUT_SECONDS = 0.2
+        service.PLAYBACK_START_POLL_SECONDS = 0.001
+        await service.initialize()
+        service.configs = {"built-in": Config(True), "apple": Config(False)}
+        monkeypatch.setattr(pyatv, "connect", connect)
+        monkeypatch.setattr(airplay_module, "ModernAirPlaySession", ModernSession)
+        try:
+            for receiver in ("built-in", "apple", "built-in"):
+                await service.start_cast(receiver, str(movie), duration_seconds=120)
+                assert service._metadata_available == (receiver == "apple")
+                assert service.cast_transport == "airplay2"
+                assert (await service.status()).state == "playing"
+        finally:
+            await service.close()
+
+    asyncio.run(scenario())
+    assert metadata_polls and not any(metadata_polls)

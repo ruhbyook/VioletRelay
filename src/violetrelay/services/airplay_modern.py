@@ -208,7 +208,14 @@ class ModernAirPlaySession:
         if self.rtsp is None:
             raise RuntimeError("Modern AirPlay command channel is not initialized")
         nested = plistlib.dumps(payload, fmt=plistlib.FMT_BINARY)
-        headers = self._stream_headers or {"X-Apple-Stream-ID": "1"}
+        # Apple TV acknowledges the hyphenated TV SDK header with HTTP 200
+        # but never starts the queue item. Its RCS endpoint requires the
+        # original StreamID spelling, without the TV session headers.
+        headers = (
+            self._stream_headers or {"X-Apple-Stream-ID": "1"}
+            if self.receiver_compatibility
+            else {"X-Apple-StreamID": "1"}
+        )
 
         async def send(command_headers: dict[str, str]) -> Any:
             return await self.rtsp.exchange(
