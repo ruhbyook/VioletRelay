@@ -45,7 +45,7 @@ Source = "https://github.com/ruhbyook/VioletRelay"
 [project.optional-dependencies]
 dev = [
   "coverage[toml]>=7.8",
-  "Pillow>=11.1,<13",
+  "Pillow>=11.1,<14",
   "pyinstaller>=6.14",
   "pytest>=8.4",
   "pytest-qt>=4.4",
