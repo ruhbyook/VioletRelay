@@ -70,18 +70,20 @@ $Archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
 try {
     $Entries = @($Archive.Entries)
     $RequiredArchiveEntries = @(
-        "VioletRelay\VioletRelay.exe",
-        "VioletRelay\LICENSE",
-        "VioletRelay\THIRD_PARTY_NOTICES.md",
-        "VioletRelay\FFMPEG_SOURCE.md"
+        "VioletRelay/VioletRelay.exe",
+        "VioletRelay/LICENSE",
+        "VioletRelay/THIRD_PARTY_NOTICES.md",
+        "VioletRelay/FFMPEG_SOURCE.md"
     )
     if (-not $Public) {
         $RequiredArchiveEntries += @(
-            "VioletRelay\_internal\vendor\ffmpeg\bin\ffmpeg.exe",
-            "VioletRelay\_internal\vendor\ffmpeg\bin\ffprobe.exe"
+            "VioletRelay/_internal/vendor/ffmpeg/bin/ffmpeg.exe",
+            "VioletRelay/_internal/vendor/ffmpeg/bin/ffprobe.exe"
         )
     }
-    $Names = @($Entries | ForEach-Object { $_.FullName })
+    # PowerShell editions differ in ZIP entry separators; accept either while
+    # comparing canonical archive paths.
+    $Names = @($Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
     $MissingEntries = @($RequiredArchiveEntries | Where-Object {
         $_ -notin $Names
     })
@@ -90,8 +92,8 @@ try {
     }
     if ($Public) {
         $BundledTools = @($Names | Where-Object {
-            $_ -like "*\vendor\ffmpeg\bin\ffmpeg.exe" -or
-            $_ -like "*\vendor\ffmpeg\bin\ffprobe.exe"
+            $_ -like "*/vendor/ffmpeg/bin/ffmpeg.exe" -or
+            $_ -like "*/vendor/ffmpeg/bin/ffprobe.exe"
         })
         if ($BundledTools.Count -gt 0) {
             throw "Public releases must acquire FFmpeg directly after user consent; bundled tools were found."
@@ -99,7 +101,7 @@ try {
     }
 
     $ExecutableEntry = $Entries | Where-Object {
-        $_.FullName -eq "VioletRelay\VioletRelay.exe"
+        $_.FullName.Replace('\', '/') -eq "VioletRelay/VioletRelay.exe"
     } | Select-Object -First 1
     $Hasher = [Security.Cryptography.SHA256]::Create()
     $Stream = $ExecutableEntry.Open()

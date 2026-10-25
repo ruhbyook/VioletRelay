@@ -13,6 +13,8 @@
 - Isolated native DLL discovery from unrelated tools on the build machine's
   PATH, fixing a packaged Qt startup failure, and bounded startup smoke tests
   to 30 seconds.
+- Normalized ZIP entry paths during release verification so archives created by
+  either Windows PowerShell or PowerShell 7 are validated consistently.
 - Included the Apple TV casting fix while preserving built-in AirPlay TV playback.
 - Documented successful physical AirPlay playback and same-session seeking on
   a Sony BRAVIA 4K VH22 running Android TV 12, including a clean post-update
