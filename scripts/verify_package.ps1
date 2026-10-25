@@ -84,7 +84,12 @@ if ($Smoke) {
         $env:VIOLETRELAY_SMOKE_TEST = "1"
         $env:VIOLETRELAY_DATA_DIR = $SmokeDataDirectory
         $env:VIOLETRELAY_DISABLE_WINDOWS_INTEGRATION = "1"
-        $Process = Start-Process -FilePath $Executable -PassThru -Wait
+        $Process = Start-Process -FilePath $Executable -PassThru -WindowStyle Hidden
+        if (-not $Process.WaitForExit(30000)) {
+            $Process.Kill()
+            $Process.WaitForExit()
+            throw "Packaged application did not finish its startup smoke test within 30 seconds. Check for a startup error or blocked shutdown."
+        }
         if ($Process.ExitCode -ne 0) {
             throw "Packaged application exited with code $($Process.ExitCode)."
         }

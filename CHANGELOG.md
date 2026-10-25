@@ -10,6 +10,9 @@
   the versions actually installed by CI and portable builds, and grouped future
   dependency proposals to reduce duplicate notifications.
 - Added installed-dependency consistency checks to both CI jobs.
+- Isolated native DLL discovery from unrelated tools on the build machine's
+  PATH, fixing a packaged Qt startup failure, and bounded startup smoke tests
+  to 30 seconds.
 - Included the Apple TV casting fix while preserving built-in AirPlay TV playback.
 - Documented successful physical AirPlay playback and same-session seeking on
   a Sony BRAVIA 4K VH22 running Android TV 12, including a clean post-update
