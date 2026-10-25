@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling==1.31.0"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [project]
 name = "violetrelay"
-version = "0.7.1"
+version = "0.7.2"
 description = "A cinematic Windows media player with optional AirPlay TV casting"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -24,9 +24,9 @@ keywords = [
   "windows",
 ]
 dependencies = [
-  "platformdirs==4.3.8",
+  "platformdirs==4.13.5",
   "pyatv==0.18.0",
-  "PySide6>=6.9,<6.12",
+  "PySide6>=6.9,<6.13",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -45,7 +45,7 @@ Source = "https://github.com/ruhbyook/VioletRelay"
 [project.optional-dependencies]
 dev = [
   "coverage[toml]>=7.8",
-  "Pillow>=11.1,<13",
+  "Pillow>=13,<14",
   "pyinstaller>=6.14",
   "pytest>=8.4",
   "pytest-qt>=4.4",
