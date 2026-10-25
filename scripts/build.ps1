@@ -37,9 +37,26 @@ if (-not $WithoutBundledFFmpeg) {
 }
 $PyInstallerArguments += "src\violetrelay\app.py"
 
-& $Python -m PyInstaller @PyInstallerArguments
-
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
+# PyInstaller searches PATH for imported DLLs. Native runtimes belonging to
+# unrelated tools (for example libheif's ICU) can shadow the Windows libraries
+# Qt expects and produce a package that builds but cannot import QtCore.
+$BasePythonDirectory = & $Python -c "import sys; print(sys.base_prefix)"
+if ($LASTEXITCODE -ne 0) { throw "Python runtime directory could not be resolved." }
+$OriginalBuildPath = $env:PATH
+try {
+    $env:PATH = @(
+        (Split-Path -Parent (Resolve-Path -LiteralPath $Python).Path),
+        $BasePythonDirectory,
+        (Join-Path $env:SystemRoot "System32"),
+        $env:SystemRoot
+    ) -join [IO.Path]::PathSeparator
+    & $Python -m PyInstaller @PyInstallerArguments
+    $BuildExitCode = $LASTEXITCODE
+}
+finally {
+    $env:PATH = $OriginalBuildPath
+}
+if ($BuildExitCode -ne 0) { throw "PyInstaller build failed." }
 
 $Dist = Join-Path $DistRoot "VioletRelay"
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, FFMPEG_SOURCE.md -Destination $Dist -Force

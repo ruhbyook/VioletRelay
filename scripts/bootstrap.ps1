@@ -12,7 +12,7 @@ if (-not $SkipPython) {
         py -3.13 -m venv .venv
     }
     & .venv\Scripts\python.exe -m pip install --upgrade pip
-    & .venv\Scripts\python.exe -m pip install -r requirements.lock
+    & .venv\Scripts\python.exe -m pip install -r requirements.txt
     & .venv\Scripts\python.exe -m pip install --no-build-isolation --no-deps -e .
 }
 

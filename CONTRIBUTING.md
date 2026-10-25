@@ -17,6 +17,11 @@ The bootstrap downloads a pinned FFmpeg developer toolchain after verifying its
 published SHA-256. Generated builds, media fixtures, logs, pairing data, caches,
 and local configuration must not be committed.
 
+`requirements.txt` pins the complete Windows build environment. Keep it in sync
+with the dependency declarations in `pyproject.toml` when updating packages, and
+run `python -m pip check` after installation. Dependabot groups related Python
+updates so the declarations and installed versions can be reviewed together.
+
 Before opening a pull request:
 
 ```powershell

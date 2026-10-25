@@ -1,7 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.7.2 - 2026-10-25
 
+- Updated the pinned network, certificate, media-tag, image, and build packages
+  to resolve the dependency advisories that blocked CI security checks.
+- Updated Qt/PySide6 to 6.12.0, platformdirs to 4.13.5, and Hatchling to 1.32.4.
+- Updated the checkout, Python setup, and artifact upload GitHub Actions to v7.
+- Moved the pinned build manifest to `requirements.txt` so Dependabot can update
+  the versions actually installed by CI and portable builds, and grouped future
+  dependency proposals to reduce duplicate notifications.
+- Added installed-dependency consistency checks to both CI jobs.
+- Isolated native DLL discovery from unrelated tools on the build machine's
+  PATH, fixing a packaged Qt startup failure, and bounded startup smoke tests
+  to 30 seconds.
+- Normalized ZIP entry paths during release verification so archives created by
+  either Windows PowerShell or PowerShell 7 are validated consistently.
+- Included the Apple TV casting fix while preserving built-in AirPlay TV playback.
 - Documented successful physical AirPlay playback and same-session seeking on
   a Sony BRAVIA 4K VH22 running Android TV 12, including a clean post-update
   compatibility check.
