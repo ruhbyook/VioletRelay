@@ -240,21 +240,6 @@ The build is created at `dist\VioletRelay\VioletRelay.exe`. Automated tests mock
 the AirPlay protocol boundary; casting releases must also be checked on physical
 hardware. See [RELEASING.md](RELEASING.md) for the complete release checklist.
 
-## Support development
-
-Every feature is free. If Violet Relay is useful to you, optional crypto tips
-can support hardware testing and future development:
-
-| Asset | Network | Public receiving address |
-| --- | --- | --- |
-| BTC | Bitcoin | `bc1q4udt9zp44v23c3geph6tq5h5a659xa0qqph2es` |
-| ETH or USDC | Ethereum Mainnet only; USDC must be ERC-20 | `0xAd53452fB8ae492a96154D12aa671D3331AA6680` |
-
-The in-app heart button displays offline QR codes and copies these public
-addresses. It never connects a wallet or asks for a seed phrase, private key,
-account, or personal information. Check the asset and network before sending;
-crypto transfers are irreversible. Tips are optional and unlock nothing.
-
 ## License
 
 Violet Relay is free software licensed under GPL-3.0-or-later. See
